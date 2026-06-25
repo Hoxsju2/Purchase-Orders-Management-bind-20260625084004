@@ -276,14 +276,18 @@ class WCSOM_Admin {
             }
         }
 
-        // Sanitize and format payments
+        // Sanitize and format payments - Automatically enforce correct math on the backend
         $formatted_payments = [];
         if (!empty($payments)) {
             foreach($payments as $p) {
+                $percent = floatval($p['percent']);
+                // Always strictly calculate based on the new total amount for 100% accuracy
+                $amount = ($percent > 0) ? ($percent / 100) * $total_amount : floatval($p['amount']);
+                
                 $formatted_payments[] = array(
                     'title' => sanitize_text_field($p['title']),
-                    'percent' => floatval($p['percent']),
-                    'amount' => floatval($p['amount']),
+                    'percent' => $percent,
+                    'amount' => $amount,
                     'status' => sanitize_text_field($p['status'])
                 );
             }
