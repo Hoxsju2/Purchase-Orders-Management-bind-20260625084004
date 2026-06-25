@@ -47,7 +47,8 @@ $notes = get_post_meta($po_id, '_wcsom_notes', true) ?: '';
 $payments = get_post_meta($po_id, '_wcsom_payments', true) ?: [];
 $attachments = get_post_meta($po_id, '_wcsom_attachments', true) ?: [];
 
-$is_editable = in_array($status, ['draft', 'waiting_for_quote', 'pending']);
+// STRICT: Only editable if draft or waiting_for_quote. 'Pending' completely locks it out.
+$is_editable = in_array($status, ['draft', 'waiting_for_quote']);
 $can_upload_files = in_array($status, ['draft', 'waiting_for_quote']);
 
 // Logo for header
@@ -126,7 +127,7 @@ $site_name = get_bloginfo('name');
                 
                 <?php if (isset($_GET['updated'])): ?>
                     <div class="bg-green-50 border border-green-200 text-green-800 p-4 rounded-xl mb-6 flex items-center gap-3">
-                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
+                        <svg class="w-6 h-6 text-green-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path></svg>
                         <strong>Order successfully updated! The admin has been notified.</strong>
                     </div>
                 <?php endif; ?>
@@ -223,7 +224,7 @@ $site_name = get_bloginfo('name');
                                 <?php if ($is_editable): ?>
                                     <textarea name="po_notes" rows="5" placeholder="Add any special instructions or lead time details..." class="w-full p-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition resize-y"><?php echo esc_textarea($notes); ?></textarea>
                                 <?php else: ?>
-                                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-600">
+                                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-600 min-h-[120px]">
                                         <?php echo !empty($notes) ? nl2br(esc_html($notes)) : '<em>No notes added.</em>'; ?>
                                     </div>
                                 <?php endif; ?>
@@ -248,22 +249,23 @@ $site_name = get_bloginfo('name');
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
-                                <?php else: ?>
-                                    <p class="text-sm text-slate-500 mb-4">No files attached to this order.</p>
                                 <?php endif; ?>
 
                                 <?php if ($can_upload_files): ?>
                                     <div class="border-2 border-dashed border-slate-300 bg-slate-50 rounded-xl p-6 text-center hover:bg-slate-100 hover:border-indigo-400 transition relative">
                                         <svg class="mx-auto h-8 w-8 text-slate-400 mb-2" stroke="currentColor" fill="none" viewBox="0 0 48 48"><path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
                                         <div class="text-sm text-slate-600">
-                                            <label class="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
-                                                <span>Upload a file</span>
-                                                <input type="file" name="wcsom_attachments[]" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" class="sr-only">
+                                            <label class="relative cursor-pointer bg-transparent rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                                <span>Upload files</span>
+                                                <input type="file" id="wcsom-file-input" name="wcsom_attachments[]" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" class="sr-only">
                                             </label>
-                                            <p class="pl-1 inline">or drag and drop</p>
+                                            <p class="pl-1 inline">or click to browse</p>
                                         </div>
                                         <p class="text-xs text-slate-500 mt-1">PDF, PNG, JPG, XLS up to 10MB</p>
                                     </div>
+                                    
+                                    <!-- Container for showing selected files instantly via JS before form submit -->
+                                    <div id="wcsom-selected-files" class="mt-3 space-y-2"></div>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -272,7 +274,7 @@ $site_name = get_bloginfo('name');
                             <div class="mb-10">
                                 <h3 class="text-lg font-bold text-slate-800 mb-4">Payment Schedule</h3>
                                 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                                    <table class="w-full text-left text-sm">
+                                    <table class="w-full text-left text-sm" id="payments-table">
                                         <thead class="bg-slate-50 text-slate-500 border-b border-slate-200">
                                             <tr>
                                                 <th class="p-3">Description</th>
@@ -283,10 +285,10 @@ $site_name = get_bloginfo('name');
                                         </thead>
                                         <tbody class="divide-y divide-slate-100">
                                             <?php foreach($payments as $p): ?>
-                                            <tr>
+                                            <tr class="payment-row" data-percent="<?php echo esc_attr($p['percent']); ?>">
                                                 <td class="p-3 font-semibold text-slate-700"><?php echo esc_html($p['title']); ?></td>
-                                                <td class="p-3"><?php echo esc_html($p['percent']); ?>%</td>
-                                                <td class="p-3"><?php echo wcsom_format_usd($p['amount']); ?></td>
+                                                <td class="p-3 font-medium text-slate-500"><?php echo esc_html($p['percent']); ?>%</td>
+                                                <td class="p-3 font-bold text-slate-900 val-pay-amount"><?php echo wcsom_format_usd($p['amount']); ?></td>
                                                 <td class="p-3 text-right font-bold uppercase text-xs tracking-wider <?php echo $p['status'] === 'paid' ? 'text-green-600' : 'text-slate-500'; ?>">
                                                     <?php echo esc_html(str_replace('_', ' ', $p['status'])); ?>
                                                 </td>
@@ -295,6 +297,9 @@ $site_name = get_bloginfo('name');
                                         </tbody>
                                     </table>
                                 </div>
+                                <?php if($is_editable): ?>
+                                    <p class="text-xs text-slate-500 mt-2 italic">Note: Payment amounts update automatically as you adjust item prices.</p>
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
 
@@ -311,26 +316,31 @@ $site_name = get_bloginfo('name');
                 </div>
             </div>
             
-            <?php if ($is_editable): ?>
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
                     const tableBody = document.querySelector('#po-table tbody');
                     const grandTotalDisplay = document.getElementById('grand-total-display');
+                    const paymentRows = document.querySelectorAll('.payment-row');
+                    const fileInput = document.getElementById('wcsom-file-input');
+                    const fileList = document.getElementById('wcsom-selected-files');
 
+                    // 1. Format Currency Helper
                     function formatMoney(amount) {
-                        return '$' + parseFloat(amount).toFixed(2);
+                        return '$' + parseFloat(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
                     }
 
+                    // 2. Real-time Calculation for Prices and Payments
                     function updateTotals() {
                         let grandTotal = 0;
                         const rows = tableBody.querySelectorAll('tr');
                         
+                        // Calculate Grand Total from Items
                         rows.forEach(row => {
                             const priceInput = row.querySelector('.val-price');
                             const qtyInput = row.querySelector('.val-qty');
                             const subtotalCell = row.querySelector('.val-subtotal');
                             
-                            if (priceInput && qtyInput) {
+                            if (priceInput && qtyInput && subtotalCell) {
                                 const price = parseFloat(priceInput.value) || 0;
                                 const qty = parseInt(qtyInput.value) || 0;
                                 const sub = price * qty;
@@ -341,17 +351,52 @@ $site_name = get_bloginfo('name');
                         });
                         
                         grandTotalDisplay.innerText = formatMoney(grandTotal);
+
+                        // Recalculate Payment Schedule rows automatically
+                        paymentRows.forEach(row => {
+                            const pct = parseFloat(row.getAttribute('data-percent')) || 0;
+                            const amtCell = row.querySelector('.val-pay-amount');
+                            
+                            if (pct > 0 && amtCell) {
+                                const newAmount = (pct / 100) * grandTotal;
+                                amtCell.innerText = formatMoney(newAmount);
+                            }
+                        });
                     }
 
-                    // Attach input listeners
-                    tableBody.addEventListener('input', function(e) {
-                        if (e.target.classList.contains('val-price')) {
-                            updateTotals();
-                        }
-                    });
+                    // Attach input listeners for price changes
+                    if (tableBody) {
+                        tableBody.addEventListener('input', function(e) {
+                            if (e.target.classList.contains('val-price')) {
+                                updateTotals();
+                            }
+                        });
+                    }
+
+                    // 3. Real-time Visual Feedback for Selected Files
+                    if (fileInput && fileList) {
+                        fileInput.addEventListener('change', function() {
+                            fileList.innerHTML = ''; // Clear previous preview
+                            
+                            if (this.files.length > 0) {
+                                let html = '<p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2">Files ready to upload:</p>';
+                                
+                                Array.from(this.files).forEach(file => {
+                                    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+                                    html += `
+                                    <div class="flex items-center gap-2 p-2.5 bg-indigo-50 border border-indigo-100 rounded-lg text-indigo-700 text-sm shadow-sm transition-all duration-200 fade-in">
+                                        <svg class="w-5 h-5 shrink-0 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+                                        <span class="truncate font-medium flex-grow">${file.name}</span>
+                                        <span class="text-indigo-400 text-xs font-semibold px-2 py-1 bg-white rounded-md">${fileSizeMB} MB</span>
+                                    </div>`;
+                                });
+                                
+                                fileList.innerHTML = html;
+                            }
+                        });
+                    }
                 });
             </script>
-            <?php endif; ?>
 
         <?php endif; ?>
     </main>
