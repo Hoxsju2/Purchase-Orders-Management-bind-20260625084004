@@ -6,7 +6,7 @@
             <p class="wcsom-card-desc">Search by code, name, email, or phone.</p>
             
             <select id="wcsom-supplier-select" class="wcsom-input">
-                <option value=""></option> <!-- Empty option for SelectWoo placeholder -->
+                <option value=""></option>
                 <?php foreach ($suppliers as $supplier): 
                     $code = get_user_meta($supplier->ID, 'supplier_code', true);
                     $company = get_user_meta($supplier->ID, 'company_name', true) ?: get_user_meta($supplier->ID, 'first_name', true) . ' ' . get_user_meta($supplier->ID, 'last_name', true);
@@ -15,7 +15,6 @@
 
                     if (!trim($company)) $company = $supplier->display_name;
 
-                    // Build formatted display string
                     $display_parts = [];
                     if ($code) $display_parts[] = '[' . $code . ']';
                     $display_parts[] = $company;
@@ -77,7 +76,7 @@
                             <th style="width: 60px;">Image</th>
                             <th>Product Name</th>
                             <th>SKU</th>
-                            <th>Price</th>
+                            <th>Price (USD)</th>
                         </tr>
                     </thead>
                     <tbody id="wcsom-supplier-products-body">
@@ -98,6 +97,10 @@
             <button class="wcsom-modal-close" id="wcsom-close-po"><span class="dashicons dashicons-no-alt"></span></button>
         </div>
         <div class="wcsom-modal-body">
+            <div class="wcsom-mb-4">
+                <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">Order Reference (Optional)</label>
+                <input type="text" id="wcsom-po-ref" class="wcsom-input" placeholder="e.g. INV-1004 (Leave blank to auto-generate)">
+            </div>
             <p class="wcsom-card-desc mb-4">Set the quantities for the selected products.</p>
             <div id="wcsom-po-items-list" class="wcsom-po-items"></div>
         </div>

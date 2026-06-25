@@ -12,7 +12,9 @@ class WCSOM_Admin {
         add_action('wp_ajax_wcsom_search_wc_products', array($this, 'ajax_search_wc_products'));
         add_action('wp_ajax_wcsom_assign_product', array($this, 'ajax_assign_product'));
         add_action('wp_ajax_wcsom_create_po', array($this, 'ajax_create_po'));
+        add_action('wp_ajax_wcsom_save_po_edit', array($this, 'ajax_save_po_edit'));
         add_action('wp_ajax_wcsom_global_product_search', array($this, 'ajax_global_product_search'));
+        add_action('wp_ajax_wcsom_search_all_wc_products', array($this, 'ajax_search_all_wc_products'));
     }
 
     public function add_admin_menus() {
@@ -30,7 +32,7 @@ class WCSOM_Admin {
     public function enqueue_assets($hook) {
         if ($hook !== 'toplevel_page_wcsom-dashboard') return;
 
-        // Enqueue WooCommerce's SelectWoo for searchable dropdowns
+        wp_enqueue_media(); // Required for admin file attachments
         wp_enqueue_style('select2');
         wp_enqueue_script('selectWoo');
 
@@ -44,18 +46,11 @@ class WCSOM_Admin {
     }
 
     public function render_dashboard() {
-        // Fetch suppliers (users with company_name or supplier_code)
         $suppliers = get_users(array(
             'meta_query' => array(
                 'relation' => 'OR',
-                array(
-                    'key'     => 'company_name',
-                    'compare' => 'EXISTS'
-                ),
-                array(
-                    'key'     => 'supplier_code',
-                    'compare' => 'EXISTS'
-                )
+                array('key' => 'company_name', 'compare' => 'EXISTS'),
+                array('key' => 'supplier_code', 'compare' => 'EXISTS')
             )
         ));
 
@@ -69,11 +64,14 @@ class WCSOM_Admin {
     public function ajax_get_supplier_products() {
         check_ajax_referer('wcsom_admin_nonce', 'nonce');
         $supplier_id = intval($_POST['supplier_id']);
+        $exclude_ids = isset($_POST['exclude_ids']) ? array_map('intval', (array)$_POST['exclude_ids']) : [];
+        $return_json = isset($_POST['return_json']) ? true : false; 
 
         $args = array(
             'post_type'      => 'product',
-            'post_status'    => 'any', // Include draft/pending
+            'post_status'    => 'any',
             'posts_per_page' => -1,
+            'post__not_in'   => $exclude_ids,
             'meta_query'     => array(
                 array(
                     'key'   => '_wcsom_supplier_id',
@@ -83,10 +81,24 @@ class WCSOM_Admin {
         );
 
         $products = get_posts($args);
-        $html = '';
+        
+        if ($return_json) {
+            $data = [];
+            foreach ($products as $post) {
+                $product = wc_get_product($post->ID);
+                $data[] = array(
+                    'id' => $post->ID,
+                    'name' => $product->get_name(),
+                    'sku' => $product->get_sku(),
+                    'price' => $product->get_price()
+                );
+            }
+            wp_send_json_success($data);
+        }
 
+        $html = '';
         if (empty($products)) {
-            wp_send_json_success('<tr><td colspan="5" style="text-align:center; padding: 30px; color: #6b7280;">No products assigned to this supplier yet.</td></tr>');
+            wp_send_json_success('<tr><td colspan="5" style="text-align:center; padding: 30px; color: #6b7280;">No products available.</td></tr>');
         }
 
         foreach ($products as $post) {
@@ -100,7 +112,7 @@ class WCSOM_Admin {
             $html .= '<td class="wcsom-td-img">' . $img . '</td>';
             $html .= '<td><strong>' . esc_html($product->get_name()) . '</strong></td>';
             $html .= '<td>' . $sku . '</td>';
-            $html .= '<td><strong>' . wc_price($price) . '</strong></td>';
+            $html .= '<td><strong>' . wcsom_format_usd($price) . '</strong></td>';
             $html .= '</tr>';
         }
 
@@ -136,6 +148,35 @@ class WCSOM_Admin {
         wp_send_json_success($result);
     }
 
+    public function ajax_search_all_wc_products() {
+        check_ajax_referer('wcsom_admin_nonce', 'nonce');
+        $keyword = sanitize_text_field($_GET['keyword']);
+
+        $args = array(
+            'post_type'      => 'product',
+            'post_status'    => 'any',
+            's'              => $keyword,
+            'posts_per_page' => 20,
+        );
+
+        $products = get_posts($args);
+        $result = array();
+
+        foreach ($products as $post) {
+            $product = wc_get_product($post->ID);
+            $sku_text = $product->get_sku() ? ' (' . $product->get_sku() . ')' : '';
+            $result[] = array(
+                'id'    => $post->ID,
+                'text'  => $product->get_name() . $sku_text,
+                'price' => $product->get_price(),
+                'sku'   => $product->get_sku(),
+                'name'  => $product->get_name()
+            );
+        }
+
+        wp_send_json_success($result);
+    }
+
     public function ajax_assign_product() {
         check_ajax_referer('wcsom_admin_nonce', 'nonce');
         $supplier_id = intval($_POST['supplier_id']);
@@ -151,7 +192,8 @@ class WCSOM_Admin {
     public function ajax_create_po() {
         check_ajax_referer('wcsom_admin_nonce', 'nonce');
         $supplier_id = intval($_POST['supplier_id']);
-        $items = isset($_POST['items']) ? $_POST['items'] : array(); // Array of {id, qty, price}
+        $order_ref = isset($_POST['order_ref']) && !empty(trim($_POST['order_ref'])) ? sanitize_text_field(trim($_POST['order_ref'])) : 'PO-' . date('Ymd') . '-' . rand(1000, 9999);
+        $items = isset($_POST['items']) ? $_POST['items'] : array(); 
 
         if (!$supplier_id || empty($items)) {
             wp_send_json_error('Missing supplier or items.');
@@ -170,28 +212,113 @@ class WCSOM_Admin {
             $order_items[] = array(
                 'product_id' => intval($item['id']),
                 'qty'        => $qty,
-                'price'      => $price
+                'price'      => $price,
+                'added_by_supplier' => false
             );
         }
 
-        // Create PO Post
         $post_id = wp_insert_post(array(
-            'post_title'  => 'PO-' . date('Ymd') . '-' . rand(1000, 9999),
+            'post_title'  => $order_ref,
             'post_type'   => 'wcsom_order',
             'post_status' => 'publish',
         ));
 
         if ($post_id) {
+            $sec_code = mt_rand(1000000, 9999999); // Generate 7 digit security code
+            
             update_post_meta($post_id, '_wcsom_supplier_id', $supplier_id);
             update_post_meta($post_id, '_wcsom_total_qty', $total_qty);
             update_post_meta($post_id, '_wcsom_total_amount', $total_amount);
             update_post_meta($post_id, '_wcsom_items', $order_items);
-            update_post_meta($post_id, '_wcsom_status', 'pending');
+            update_post_meta($post_id, '_wcsom_status', 'waiting_for_quote');
+            update_post_meta($post_id, '_wcsom_notes', '');
+            update_post_meta($post_id, '_wcsom_security_code', $sec_code);
+            
+            // Empty payments and attachments arrays initially
+            update_post_meta($post_id, '_wcsom_payments', array());
+            update_post_meta($post_id, '_wcsom_attachments', array());
             
             wp_send_json_success('Purchase order created successfully!');
         }
 
         wp_send_json_error('Failed to create order.');
+    }
+
+    public function ajax_save_po_edit() {
+        check_ajax_referer('wcsom_admin_nonce', 'nonce');
+        $po_id = intval($_POST['po_id']);
+        $order_ref = sanitize_text_field($_POST['order_ref']);
+        $status = sanitize_text_field($_POST['status']);
+        $notes = sanitize_textarea_field($_POST['notes']);
+        $items = isset($_POST['items']) ? $_POST['items'] : array();
+        
+        $payments = isset($_POST['payments']) ? $_POST['payments'] : array();
+        $attachments = isset($_POST['attachments']) ? $_POST['attachments'] : array();
+
+        $total_qty = 0;
+        $total_amount = 0;
+        $order_items = array();
+
+        foreach ($items as $item) {
+            $qty = intval($item['qty']);
+            $price = floatval($item['price']);
+            $added = !empty($item['added']) ? true : false;
+            
+            if ($qty > 0) {
+                $total_qty += $qty;
+                $total_amount += ($qty * $price);
+                $order_items[] = array(
+                    'product_id' => intval($item['id']),
+                    'qty'        => $qty,
+                    'price'      => $price,
+                    'added_by_supplier' => $added
+                );
+            }
+        }
+
+        // Sanitize and format payments
+        $formatted_payments = [];
+        if (!empty($payments)) {
+            foreach($payments as $p) {
+                $formatted_payments[] = array(
+                    'title' => sanitize_text_field($p['title']),
+                    'percent' => floatval($p['percent']),
+                    'amount' => floatval($p['amount']),
+                    'status' => sanitize_text_field($p['status'])
+                );
+            }
+        }
+
+        // Validate attachments structure
+        $formatted_attachments = [];
+        if (!empty($attachments)) {
+            foreach($attachments as $a) {
+                $formatted_attachments[] = array(
+                    'url' => esc_url_raw($a['url']),
+                    'name' => sanitize_text_field($a['name']),
+                    'type' => sanitize_text_field($a['type']),
+                    'uploaded_by' => sanitize_text_field($a['uploaded_by']),
+                    'date' => sanitize_text_field($a['date'])
+                );
+            }
+        }
+
+        if (!empty($order_ref)) {
+            wp_update_post(array(
+                'ID'         => $po_id,
+                'post_title' => $order_ref
+            ));
+        }
+
+        update_post_meta($po_id, '_wcsom_items', $order_items);
+        update_post_meta($po_id, '_wcsom_total_qty', $total_qty);
+        update_post_meta($po_id, '_wcsom_total_amount', $total_amount);
+        update_post_meta($po_id, '_wcsom_status', $status);
+        update_post_meta($po_id, '_wcsom_notes', $notes);
+        update_post_meta($po_id, '_wcsom_payments', $formatted_payments);
+        update_post_meta($po_id, '_wcsom_attachments', $formatted_attachments);
+
+        wp_send_json_success('Purchase order updated successfully!');
     }
 
     public function ajax_global_product_search() {
@@ -237,7 +364,7 @@ class WCSOM_Admin {
             $html .= '<td style="display:flex; align-items:center; gap:12px;">' . $img . ' <strong>' . esc_html($product->get_name()) . '</strong></td>';
             $html .= '<td>' . $sku . '</td>';
             $html .= '<td>' . $supplier_display . '</td>';
-            $html .= '<td><button class="wcsom-btn wcsom-btn-outline action-add-to-po" data-id="'.$post->ID.'" data-supplier="'.$supplier_id.'">Add to PO</button></td>';
+            $html .= '<td><button class="wcsom-btn wcsom-btn-outline" onclick="window.location.href=\'?page=wcsom-dashboard&tab=suppliers\'">Go to Suppliers</button></td>';
             $html .= '</tr>';
         }
 
