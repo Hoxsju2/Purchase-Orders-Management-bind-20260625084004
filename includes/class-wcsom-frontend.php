@@ -122,8 +122,20 @@ class WCSOM_Frontend {
             update_post_meta($po_id, '_wcsom_notes', $notes);
             update_post_meta($po_id, '_wcsom_status', 'pending');
 
-            // Handle file uploads (only if status was draft or waiting_for_quote)
-            if (in_array($status, ['draft', 'waiting_for_quote']) && !empty($_FILES['wcsom_attachments']['name'][0])) {
+            // --- RECALCULATE PAYMENTS ---
+            // If the supplier changed the prices, automatically calculate the new deposit/payment amounts based on percentage
+            $payments = get_post_meta($po_id, '_wcsom_payments', true);
+            if (!empty($payments) && is_array($payments)) {
+                foreach ($payments as &$p) {
+                    if (isset($p['percent']) && $p['percent'] > 0) {
+                        $p['amount'] = (floatval($p['percent']) / 100) * $total_amt;
+                    }
+                }
+                update_post_meta($po_id, '_wcsom_payments', $payments);
+            }
+
+            // Handle file uploads securely - Added 'isset' checks to prevent White Screen (Fatal Error)
+            if (in_array($status, ['draft', 'waiting_for_quote']) && isset($_FILES['wcsom_attachments']) && isset($_FILES['wcsom_attachments']['name']) && !empty($_FILES['wcsom_attachments']['name'][0])) {
                 require_once ABSPATH . 'wp-admin/includes/image.php';
                 require_once ABSPATH . 'wp-admin/includes/file.php';
                 require_once ABSPATH . 'wp-admin/includes/media.php';
@@ -157,13 +169,8 @@ class WCSOM_Frontend {
             }
 
             // Reliable redirect to prevent the blank white page issue
-            $redirect_url = wp_get_referer();
-            if (!$redirect_url) {
-                $redirect_url = add_query_arg(array('wcsom_portal' => 1, 'po_id' => $po_id), home_url('/'));
-            }
-            $redirect_url = add_query_arg('updated', '1', $redirect_url);
-            
-            wp_safe_redirect($redirect_url);
+            $redirect_url = add_query_arg(array('wcsom_portal' => '1', 'po_id' => $po_id, 'updated' => '1'), home_url('/'));
+            wp_redirect($redirect_url);
             exit;
         }
     }
