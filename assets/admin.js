@@ -2,6 +2,15 @@ jQuery(document).ready(function($) {
 
     let currentSupplierId = null;
 
+    // Initialize SelectWoo for a modern searchable dropdown
+    if($.fn.selectWoo) {
+        $('#wcsom-supplier-select').selectWoo({
+            placeholder: 'Search by code, name, email or phone...',
+            allowClear: true,
+            width: '100%'
+        });
+    }
+
     // 1. Load Supplier Products
     $('#wcsom-supplier-select').on('change', function() {
         let supplierId = $(this).val();
@@ -9,8 +18,8 @@ jQuery(document).ready(function($) {
 
         if (supplierId) {
             $('#wcsom-supplier-placeholder').hide();
-            $('#wcsom-supplier-data').show();
-            $('#wcsom-assign-product-box').show();
+            $('#wcsom-supplier-data').fadeIn(200);
+            $('#wcsom-assign-product-box').fadeIn(200);
             loadSupplierProducts(supplierId);
         } else {
             $('#wcsom-supplier-placeholder').show();
@@ -20,7 +29,7 @@ jQuery(document).ready(function($) {
     });
 
     function loadSupplierProducts(supplierId) {
-        $('#wcsom-supplier-products-body').html('<tr><td colspan="5">Loading products...</td></tr>');
+        $('#wcsom-supplier-products-body').html('<tr><td colspan="5" style="text-align:center; padding: 40px;"><span class="dashicons dashicons-update dashicons-spin" style="color:#9ca3af;"></span> Loading products...</td></tr>');
         $.post(wcsom_ajax.ajax_url, {
             action: 'wcsom_get_supplier_products',
             nonce: wcsom_ajax.nonce,
@@ -53,9 +62,9 @@ jQuery(document).ready(function($) {
                 if (response.success) {
                     let html = '';
                     response.data.forEach(function(item) {
-                        html += `<li data-id="${item.id}">${item.name}</li>`;
+                        html += `<li data-id="${item.id}"><strong>${item.name}</strong></li>`;
                     });
-                    if (html === '') html = '<li>No unassigned products found</li>';
+                    if (html === '') html = '<li style="color:#6b7280;">No unassigned products found</li>';
                     $('#wcsom-search-assign-results').html(html);
                 }
             });
@@ -67,6 +76,9 @@ jQuery(document).ready(function($) {
         let productId = $(this).data('id');
         if (!currentSupplierId) return;
 
+        let originalText = $(this).html();
+        $(this).html('<span class="dashicons dashicons-update dashicons-spin"></span> Assigning...');
+
         $.post(wcsom_ajax.ajax_url, {
             action: 'wcsom_assign_product',
             nonce: wcsom_ajax.nonce,
@@ -77,13 +89,15 @@ jQuery(document).ready(function($) {
                 $('#wcsom-search-assign-input').val('');
                 $('#wcsom-search-assign-results').empty();
                 loadSupplierProducts(currentSupplierId);
+            } else {
+                $(this).html(originalText);
             }
         });
     });
 
     // 3. Create PO Modal Logic
     function bindCheckboxes() {
-        $('.wcsom-po-select, #wcsom-select-all').on('change', function() {
+        $('.wcsom-po-select, #wcsom-select-all').off('change').on('change', function() {
             if ($(this).attr('id') === 'wcsom-select-all') {
                 $('.wcsom-po-select').prop('checked', $(this).prop('checked'));
             }
@@ -101,18 +115,19 @@ jQuery(document).ready(function($) {
             
             html += `
             <div class="wcsom-po-item-row" data-id="${id}" data-price="${price}">
-                <span>${name}</span>
-                <span>
-                    Qty: <input type="number" class="wcsom-po-qty wcsom-input" value="1" min="1">
-                </span>
+                <strong>${name}</strong>
+                <div class="qty-wrapper">
+                    <span>Qty:</span>
+                    <input type="number" class="wcsom-po-qty wcsom-input" value="1" min="1">
+                </div>
             </div>`;
         });
         $('#wcsom-po-items-list').html(html);
-        $('#wcsom-po-modal').show();
+        $('#wcsom-po-modal').fadeIn(200);
     });
 
-    $('#wcsom-cancel-po').on('click', function() {
-        $('#wcsom-po-modal').hide();
+    $('#wcsom-cancel-po, #wcsom-close-po, .wcsom-modal-overlay').on('click', function() {
+        $('#wcsom-po-modal').fadeOut(200);
     });
 
     $('#wcsom-confirm-po').on('click', function() {
@@ -125,7 +140,9 @@ jQuery(document).ready(function($) {
             });
         });
 
-        $(this).prop('disabled', true).text('Creating...');
+        let $btn = $(this);
+        let originalText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update dashicons-spin"></span> Processing...');
 
         $.post(wcsom_ajax.ajax_url, {
             action: 'wcsom_create_po',
@@ -134,11 +151,10 @@ jQuery(document).ready(function($) {
             items: items
         }, function(response) {
             if (response.success) {
-                alert('Purchase order successfully created!');
                 window.location.href = '?page=wcsom-dashboard&tab=orders';
             } else {
                 alert('Error creating order.');
-                $('#wcsom-confirm-po').prop('disabled', false).text('Confirm & Create PO');
+                $btn.prop('disabled', false).html(originalText);
             }
         });
     });
@@ -148,17 +164,27 @@ jQuery(document).ready(function($) {
         let keyword = $('#wcsom-global-search-input').val();
         if (keyword.length < 2) return;
 
-        $('#wcsom-global-search-results').html('<tr><td colspan="4">Searching...</td></tr>');
+        let $btn = $(this);
+        let originalText = $btn.html();
+        $btn.prop('disabled', true).html('Searching...');
+        $('#wcsom-global-search-results').html('<tr><td colspan="4" class="wcsom-empty-cell"><span class="dashicons dashicons-update dashicons-spin"></span> Loading...</td></tr>');
         
         $.post(wcsom_ajax.ajax_url, {
             action: 'wcsom_global_product_search',
             nonce: wcsom_ajax.nonce,
             keyword: keyword
         }, function(response) {
+            $btn.prop('disabled', false).html(originalText);
             if (response.success) {
                 $('#wcsom-global-search-results').html(response.data);
             }
         });
+    });
+
+    $('#wcsom-global-search-input').on('keypress', function(e) {
+        if(e.which == 13) {
+            $('#wcsom-btn-global-search').trigger('click');
+        }
     });
 
     $(document).on('click', '.action-add-to-po', function() {

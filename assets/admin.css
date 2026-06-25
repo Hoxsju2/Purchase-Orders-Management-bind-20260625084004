@@ -1,80 +1,336 @@
-.wcsom-wrap {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+/* Modern Dashboard CSS for WooCommerce Supplier Orders Manager */
+
+:root {
+    --wcsom-primary: #4f46e5;
+    --wcsom-primary-hover: #4338ca;
+    --wcsom-bg: #f3f4f6;
+    --wcsom-card-bg: #ffffff;
+    --wcsom-border: #e5e7eb;
+    --wcsom-text-main: #111827;
+    --wcsom-text-muted: #6b7280;
+    --wcsom-radius-lg: 12px;
+    --wcsom-radius-md: 8px;
+    --wcsom-radius-sm: 6px;
+    --wcsom-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --wcsom-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
+.wcsom-wrap {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 20px 20px 0 0;
+    color: var(--wcsom-text-main);
+}
+
+.wcsom-header {
+    margin-bottom: 24px;
+}
+
+.wcsom-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    padding: 0;
+    color: var(--wcsom-text-main);
+}
+
+.wcsom-subtitle {
+    margin: 0;
+    color: var(--wcsom-text-muted);
+    font-size: 14px;
+}
+
+/* Tabs Navigation */
+.wcsom-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--wcsom-border);
+    padding-bottom: 12px;
+}
+
+.wcsom-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    text-decoration: none;
+    color: var(--wcsom-text-muted);
+    font-weight: 500;
+    font-size: 14px;
+    border-radius: var(--wcsom-radius-md);
+    transition: all 0.2s ease;
+}
+
+.wcsom-tab:hover {
+    background: #e5e7eb;
+    color: var(--wcsom-text-main);
+}
+
+.wcsom-tab.active {
+    background: #e0e7ff;
+    color: var(--wcsom-primary);
+}
+
+.wcsom-tab .dashicons {
+    font-size: 18px;
+    height: 18px;
+    width: 18px;
+}
+
+/* Layout Grid */
 .wcsom-grid {
     display: flex;
-    gap: 20px;
-    margin-top: 15px;
+    gap: 24px;
+    align-items: flex-start;
 }
 
 .wcsom-sidebar {
-    width: 300px;
+    width: 320px;
     flex-shrink: 0;
 }
 
 .wcsom-main-content {
     flex-grow: 1;
+    min-width: 0;
 }
 
-.wcsom-panel {
-    background: #fff;
-    border: 1px solid #ccd0d4;
-    border-radius: 4px;
-    padding: 20px;
-    box-shadow: 0 1px 1px rgba(0,0,0,.04);
+/* Cards */
+.wcsom-card {
+    background: var(--wcsom-card-bg);
+    border: 1px solid var(--wcsom-border);
+    border-radius: var(--wcsom-radius-lg);
+    padding: 24px;
+    box-shadow: var(--wcsom-shadow-sm);
 }
 
+.wcsom-card-header {
+    margin-bottom: 20px;
+}
+
+.wcsom-card-title {
+    margin: 0 0 4px 0 !important;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.wcsom-card-desc {
+    margin: 0;
+    color: var(--wcsom-text-muted);
+    font-size: 13px;
+}
+
+/* Forms & Inputs */
 .wcsom-input {
     width: 100%;
-    padding: 8px;
-    border: 1px solid #8c8f94;
-    border-radius: 4px;
+    padding: 10px 12px;
+    border: 1px solid var(--wcsom-border);
+    border-radius: var(--wcsom-radius-sm);
+    font-size: 14px;
+    box-shadow: var(--wcsom-shadow-sm);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fff;
     box-sizing: border-box;
 }
 
+.wcsom-input:focus {
+    border-color: var(--wcsom-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    outline: none;
+}
+
+.wcsom-search-wrapper {
+    position: relative;
+}
+
+.wcsom-search-icon {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+}
+
+.wcsom-input-with-icon {
+    padding-left: 36px;
+}
+
+/* Select2 / SelectWoo Overrides for Modern Look */
+.select2-container--default .select2-selection--single {
+    height: 40px !important;
+    border: 1px solid var(--wcsom-border) !important;
+    border-radius: var(--wcsom-radius-sm) !important;
+    display: flex;
+    align-items: center;
+    box-shadow: var(--wcsom-shadow-sm);
+}
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 38px !important;
+}
+
+/* Buttons */
+.wcsom-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--wcsom-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    text-decoration: none;
+}
+
+.wcsom-btn-primary {
+    background: var(--wcsom-primary);
+    color: white;
+    box-shadow: var(--wcsom-shadow-sm);
+}
+
+.wcsom-btn-primary:hover:not(:disabled) {
+    background: var(--wcsom-primary-hover);
+    color: white;
+}
+
+.wcsom-btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.wcsom-btn-outline {
+    background: transparent;
+    border-color: #d1d5db;
+    color: #374151;
+}
+
+.wcsom-btn-outline:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+}
+
+/* Tables */
+.wcsom-table-responsive {
+    overflow-x: auto;
+    margin-top: 16px;
+    border: 1px solid var(--wcsom-border);
+    border-radius: var(--wcsom-radius-md);
+}
+
 .wcsom-table {
-    margin-top: 15px;
-    border: 1px solid #ccd0d4;
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.wcsom-table th {
+    background: #f9fafb;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--wcsom-text-muted);
+    border-bottom: 1px solid var(--wcsom-border);
+}
+
+.wcsom-table td {
+    padding: 16px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--wcsom-border);
+    font-size: 14px;
+}
+
+.wcsom-table tr:last-child td {
+    border-bottom: none;
+}
+
+.wcsom-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.wcsom-empty-cell {
+    text-align: center;
+    padding: 40px !important;
+    color: var(--wcsom-text-muted);
 }
 
 .wcsom-thumb {
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     object-fit: cover;
-    border-radius: 4px;
-    border: 1px solid #ddd;
+    border-radius: var(--wcsom-radius-sm);
+    border: 1px solid var(--wcsom-border);
 }
 
-.wcsom-flex-between {
+/* Empty State */
+.wcsom-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.wcsom-empty-icon {
+    width: 64px;
+    height: 64px;
+    background: #f3f4f6;
+    border-radius: 50%;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px auto;
 }
 
+.wcsom-empty-icon .dashicons {
+    font-size: 32px;
+    width: 32px;
+    height: 32px;
+    color: #9ca3af;
+}
+
+.wcsom-empty-state h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+}
+
+.wcsom-empty-state p {
+    color: var(--wcsom-text-muted);
+    margin: 0;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Autocomplete */
 .wcsom-autocomplete {
     list-style: none;
-    margin: 0;
+    margin: 8px 0 0 0;
     padding: 0;
-    border: 1px solid #ddd;
-    border-top: none;
+    border: 1px solid var(--wcsom-border);
+    border-radius: var(--wcsom-radius-sm);
     max-height: 200px;
     overflow-y: auto;
     background: #fff;
+    box-shadow: var(--wcsom-shadow-md);
 }
 
 .wcsom-autocomplete li {
-    padding: 10px;
+    padding: 12px 16px;
     margin: 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #f3f4f6;
     cursor: pointer;
+    font-size: 13px;
+    transition: background 0.2s;
+}
+
+.wcsom-autocomplete li:last-child {
+    border-bottom: none;
 }
 
 .wcsom-autocomplete li:hover {
-    background: #f0f0f1;
+    background: #f9fafb;
+    color: var(--wcsom-primary);
 }
 
-/* Modal Styles */
+/* Modal */
 .wcsom-modal {
     display: none;
     position: fixed;
@@ -83,46 +339,131 @@
     top: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.5);
+}
+
+.wcsom-modal-overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(17, 24, 39, 0.5);
+    backdrop-filter: blur(2px);
 }
 
 .wcsom-modal-content {
-    background-color: #fefefe;
-    margin: 10% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 500px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: relative;
+    background-color: #fff;
+    margin: 8% auto;
+    width: 550px;
+    border-radius: var(--wcsom-radius-lg);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    display: flex;
+    flex-direction: column;
+}
+
+.wcsom-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--wcsom-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.wcsom-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.wcsom-modal-close {
+    background: transparent;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+.wcsom-modal-close:hover {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.wcsom-modal-body {
+    padding: 24px;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .wcsom-modal-footer {
-    margin-top: 20px;
-    text-align: right;
-    border-top: 1px solid #eee;
-    padding-top: 15px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--wcsom-border);
+    background: #f9fafb;
+    border-bottom-left-radius: var(--wcsom-radius-lg);
+    border-bottom-right-radius: var(--wcsom-radius-lg);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.wcsom-po-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .wcsom-po-item-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid #f0f0f1;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border: 1px solid var(--wcsom-border);
+    border-radius: var(--wcsom-radius-sm);
 }
 
-.wcsom-po-item-row input[type="number"] {
-    width: 60px;
+.wcsom-po-item-row .qty-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--wcsom-text-muted);
 }
 
+.wcsom-po-qty {
+    width: 70px;
+    text-align: center;
+}
+
+/* Badges & Pills */
 .wcsom-badge {
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
     font-weight: 600;
+    display: inline-block;
 }
 
-.wcsom-badge-pending { background: #fff3cd; color: #856404; }
-.wcsom-badge-completed { background: #d4edda; color: #155724; }
+.wcsom-badge-pending { background: #fef3c7; color: #92400e; }
+.wcsom-badge-completed { background: #d1fae5; color: #065f46; }
 
-.mt-4 { margin-top: 1rem; }
+.wcsom-qty-pill {
+    background: #f3f4f6;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.wcsom-order-link {
+    color: var(--wcsom-primary);
+    text-decoration: none;
+}
+
+.wcsom-order-link:hover {
+    text-decoration: underline;
+}
+
+/* Utils */
+.wcsom-flex-between { display: flex; justify-content: space-between; align-items: center; }
+.wcsom-mb-4 { margin-bottom: 16px; }
+.mt-4 { margin-top: 16px; }

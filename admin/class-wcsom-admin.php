@@ -30,8 +30,12 @@ class WCSOM_Admin {
     public function enqueue_assets($hook) {
         if ($hook !== 'toplevel_page_wcsom-dashboard') return;
 
+        // Enqueue WooCommerce's SelectWoo for searchable dropdowns
+        wp_enqueue_style('select2');
+        wp_enqueue_script('selectWoo');
+
         wp_enqueue_style('wcsom-admin-css', WCSOM_PLUGIN_URL . 'assets/admin.css', array(), WCSOM_VERSION);
-        wp_enqueue_script('wcsom-admin-js', WCSOM_PLUGIN_URL . 'assets/admin.js', array('jquery'), WCSOM_VERSION, true);
+        wp_enqueue_script('wcsom-admin-js', WCSOM_PLUGIN_URL . 'assets/admin.js', array('jquery', 'selectWoo'), WCSOM_VERSION, true);
 
         wp_localize_script('wcsom-admin-js', 'wcsom_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
@@ -82,21 +86,21 @@ class WCSOM_Admin {
         $html = '';
 
         if (empty($products)) {
-            wp_send_json_success('<p>No products assigned to this supplier yet.</p>');
+            wp_send_json_success('<tr><td colspan="5" style="text-align:center; padding: 30px; color: #6b7280;">No products assigned to this supplier yet.</td></tr>');
         }
 
         foreach ($products as $post) {
             $product = wc_get_product($post->ID);
             $img = $product->get_image('thumbnail', array('class' => 'wcsom-thumb'));
-            $sku = $product->get_sku() ? $product->get_sku() : 'N/A';
+            $sku = $product->get_sku() ? $product->get_sku() : '<span style="color:#9ca3af;">N/A</span>';
             $price = $product->get_price();
 
             $html .= '<tr>';
-            $html .= '<td><input type="checkbox" class="wcsom-po-select" value="' . $post->ID . '" data-price="'.$price.'" data-name="'.esc_attr($product->get_name()).'"></td>';
-            $html .= '<td>' . $img . '</td>';
-            $html .= '<td>' . esc_html($product->get_name()) . '</td>';
-            $html .= '<td>' . esc_html($sku) . '</td>';
-            $html .= '<td>' . wc_price($price) . '</td>';
+            $html .= '<td class="wcsom-td-check"><input type="checkbox" class="wcsom-po-select" value="' . $post->ID . '" data-price="'.$price.'" data-name="'.esc_attr($product->get_name()).'"></td>';
+            $html .= '<td class="wcsom-td-img">' . $img . '</td>';
+            $html .= '<td><strong>' . esc_html($product->get_name()) . '</strong></td>';
+            $html .= '<td>' . $sku . '</td>';
+            $html .= '<td><strong>' . wc_price($price) . '</strong></td>';
             $html .= '</tr>';
         }
 
@@ -121,9 +125,10 @@ class WCSOM_Admin {
             $product = wc_get_product($post->ID);
             $assigned_supplier = get_post_meta($post->ID, '_wcsom_supplier_id', true);
             if (!$assigned_supplier) {
+                $sku_text = $product->get_sku() ? ' (' . $product->get_sku() . ')' : '';
                 $result[] = array(
                     'id'   => $post->ID,
-                    'name' => $product->get_name() . ' (' . $product->get_sku() . ')'
+                    'name' => $product->get_name() . $sku_text
                 );
             }
         }
@@ -204,30 +209,35 @@ class WCSOM_Admin {
         $html = '';
 
         if (empty($products)) {
-            wp_send_json_success('<tr><td colspan="4">No products found.</td></tr>');
+            wp_send_json_success('<tr><td colspan="4" style="text-align:center; padding: 20px;">No products found.</td></tr>');
         }
 
         foreach ($products as $post) {
             $product = wc_get_product($post->ID);
             $supplier_id = get_post_meta($post->ID, '_wcsom_supplier_id', true);
-            $supplier_name = 'Unassigned';
+            
+            $supplier_display = '<span style="color:#9ca3af; font-style:italic;">Unassigned</span>';
             
             if ($supplier_id) {
-                $supplier_name = get_user_meta($supplier_id, 'company_name', true) ?: get_user_meta($supplier_id, 'supplier_code', true);
-                if (!$supplier_name) {
+                $code = get_user_meta($supplier_id, 'supplier_code', true);
+                $company = get_user_meta($supplier_id, 'company_name', true) ?: get_user_meta($supplier_id, 'first_name', true) . ' ' . get_user_meta($supplier_id, 'last_name', true);
+                
+                if (!trim($company)) {
                     $user_info = get_userdata($supplier_id);
-                    $supplier_name = $user_info ? $user_info->display_name : 'Unknown';
+                    $company = $user_info ? $user_info->display_name : 'Unknown';
                 }
+                
+                $supplier_display = '<strong>' . ($code ? '[' . esc_html($code) . '] ' : '') . esc_html($company) . '</strong>';
             }
 
             $img = $product->get_image('thumbnail', array('class' => 'wcsom-thumb'));
-            $sku = $product->get_sku() ? $product->get_sku() : 'N/A';
+            $sku = $product->get_sku() ? $product->get_sku() : '<span style="color:#9ca3af;">N/A</span>';
 
             $html .= '<tr>';
-            $html .= '<td>' . $img . ' ' . esc_html($product->get_name()) . '</td>';
-            $html .= '<td>' . esc_html($sku) . '</td>';
-            $html .= '<td>' . esc_html($supplier_name) . '</td>';
-            $html .= '<td><button class="button action-add-to-po" data-id="'.$post->ID.'" data-supplier="'.$supplier_id.'">Add to PO</button></td>';
+            $html .= '<td style="display:flex; align-items:center; gap:12px;">' . $img . ' <strong>' . esc_html($product->get_name()) . '</strong></td>';
+            $html .= '<td>' . $sku . '</td>';
+            $html .= '<td>' . $supplier_display . '</td>';
+            $html .= '<td><button class="wcsom-btn wcsom-btn-outline action-add-to-po" data-id="'.$post->ID.'" data-supplier="'.$supplier_id.'">Add to PO</button></td>';
             $html .= '</tr>';
         }
 
