@@ -85,8 +85,9 @@ class WCSOM_Frontend {
 
         $status = get_post_meta($po_id, '_wcsom_status', true);
         
-        if (!in_array($status, ['draft', 'waiting_for_quote', 'pending'])) {
-            wp_die('This order can no longer be edited.');
+        // Strict verification: Once submitted (pending or anything else), block edits
+        if (!in_array($status, ['draft', 'waiting_for_quote'])) {
+            wp_die('This order has already been submitted and can no longer be edited by the supplier.');
         }
 
         $items = isset($_POST['items']) ? $_POST['items'] : [];
