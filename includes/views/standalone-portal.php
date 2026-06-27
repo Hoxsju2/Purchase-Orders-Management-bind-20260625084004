@@ -46,6 +46,8 @@ $items = get_post_meta($po_id, '_wcsom_items', true) ?: [];
 $notes = get_post_meta($po_id, '_wcsom_notes', true) ?: '';
 $payments = get_post_meta($po_id, '_wcsom_payments', true) ?: [];
 $attachments = get_post_meta($po_id, '_wcsom_attachments', true) ?: [];
+$incoterm = get_post_meta($po_id, '_wcsom_incoterm', true) ?: 'EXW';
+$fob_port = get_post_meta($po_id, '_wcsom_fob_port', true) ?: '';
 
 // STRICT: Only editable if draft or waiting_for_quote. 'Pending' completely locks it out.
 $is_editable = in_array($status, ['draft', 'waiting_for_quote']);
@@ -87,9 +89,16 @@ $site_name = get_bloginfo('name');
             </div>
             
             <?php if($is_authorized): ?>
-                <a href="<?php echo esc_url(home_url('/?wcsom_print=1&po_id=' . $po_id)); ?>" target="_blank" class="text-sm font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-lg transition">
-                    View PDF Format
-                </a>
+                <div class="flex gap-2">
+                    <a href="<?php echo esc_url(home_url('/?wcsom_print=1&po_id=' . $po_id . '&sec_code=' . $sec_code . '&action=print')); ?>" target="_blank" class="text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 px-4 py-2 rounded-lg transition shadow-sm flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+                        Print PO
+                    </a>
+                    <a href="<?php echo esc_url(home_url('/?wcsom_print=1&po_id=' . $po_id . '&sec_code=' . $sec_code . '&action=pdf')); ?>" target="_blank" class="text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition shadow-sm flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Download PDF
+                    </a>
+                </div>
             <?php endif; ?>
         </div>
     </header>
@@ -143,7 +152,7 @@ $site_name = get_bloginfo('name');
                             </h1>
                             <p class="text-slate-500 mt-2">
                                 <?php if ($is_editable): ?>
-                                    This order requires your input. Please fill out your prices below. Quantities and items have been locked by the admin.
+                                    This order requires your input. Please fill out your prices and select terms below. Quantities are locked by the admin.
                                 <?php else: ?>
                                     This order is finalized and locked for editing.
                                 <?php endif; ?>
@@ -177,11 +186,19 @@ $site_name = get_bloginfo('name');
                                         $line_total = $item['qty'] * $item['price'];
                                         $grand_total += $line_total;
                                         $is_added = !empty($item['added_by_supplier']);
+                                        $supp_model = isset($item['supplier_model']) ? $item['supplier_model'] : get_post_meta($item['product_id'], '_wcsom_supplier_model', true);
+                                        
+                                        // Prevent showing 0.00 if it was freshly added
+                                        $display_price = $item['price'] > 0 ? esc_attr($item['price']) : '';
                                     ?>
                                     <tr class="hover:bg-slate-50/50 transition">
                                         <td class="p-4">
                                             <p class="font-semibold text-slate-800 <?php if($is_added) echo 'text-red-600'; ?>"><?php echo esc_html($product->get_name()); ?></p>
-                                            <p class="text-sm text-slate-400"><?php echo esc_html($product->get_sku()); ?></p>
+                                            <?php if($supp_model): ?>
+                                                <p class="text-xs text-slate-500 mt-0.5">Model: <?php echo esc_html($supp_model); ?></p>
+                                            <?php endif; ?>
+                                            <p class="text-xs text-slate-400 mt-0.5">SKU: <?php echo esc_html($product->get_sku()); ?></p>
+                                            
                                             <?php if($is_added): ?>
                                                 <span class="inline-block mt-1 text-xs font-semibold bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100">Added by You</span>
                                             <?php endif; ?>
@@ -190,7 +207,7 @@ $site_name = get_bloginfo('name');
                                             <?php if ($is_editable): ?>
                                                 <div class="relative">
                                                     <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                                    <input type="number" step="0.01" name="items[<?php echo $item['product_id']; ?>][price]" value="<?php echo esc_attr($item['price']); ?>" class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition val-price">
+                                                    <input type="number" step="0.01" name="items[<?php echo $item['product_id']; ?>][price]" value="<?php echo $display_price; ?>" class="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition val-price" placeholder="0.00">
                                                 </div>
                                             <?php else: ?>
                                                 <span class="font-medium"><?php echo wcsom_format_usd($item['price']); ?></span>
@@ -212,8 +229,35 @@ $site_name = get_bloginfo('name');
 
                         <div class="flex justify-end border-t border-slate-200 pt-6 mb-10">
                             <div class="text-right">
-                                <p class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Grand Total</p>
+                                <p class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-1">Grand Total (<span id="grand-total-incoterm"><?php echo esc_html($incoterm); ?></span>)</p>
                                 <p class="text-4xl font-extrabold text-slate-900" id="grand-total-display"><?php echo wcsom_format_usd($grand_total); ?></p>
+                                
+                                <?php if ($is_editable): ?>
+                                    <div class="mt-4 flex items-center justify-end gap-5 bg-slate-50 px-4 py-3 rounded-lg border border-slate-200 shadow-sm">
+                                        <span class="text-sm font-bold text-slate-700">Shipping Terms:</span>
+                                        <label class="inline-flex items-center cursor-pointer group">
+                                            <input type="radio" name="wcsom_incoterm" value="EXW" class="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer" <?php checked($incoterm, 'EXW'); ?>>
+                                            <span class="ml-2 text-slate-700 font-bold text-sm group-hover:text-indigo-600 transition">EXW</span>
+                                        </label>
+                                        <label class="inline-flex items-center cursor-pointer group">
+                                            <input type="radio" name="wcsom_incoterm" value="FOB" class="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer" <?php checked($incoterm, 'FOB'); ?>>
+                                            <span class="ml-2 text-slate-700 font-bold text-sm group-hover:text-indigo-600 transition">FOB</span>
+                                        </label>
+                                    </div>
+                                    <div id="wcsom-fob-port-wrapper" class="mt-3 flex items-center justify-end gap-3" style="display: <?php echo $incoterm === 'FOB' ? 'flex' : 'none'; ?>;">
+                                        <span class="text-sm font-bold text-slate-700">Port Name:</span>
+                                        <input type="text" name="wcsom_fob_port" id="wcsom-fob-port-input" value="<?php echo esc_attr($fob_port); ?>" placeholder="e.g. Shenzhen" class="p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none w-48">
+                                    </div>
+                                <?php else: ?>
+                                    <input type="hidden" name="wcsom_incoterm" value="<?php echo esc_attr($incoterm); ?>">
+                                    <input type="hidden" name="wcsom_fob_port" value="<?php echo esc_attr($fob_port); ?>">
+                                    <?php if($incoterm === 'FOB'): ?>
+                                    <div class="mt-3 flex items-center justify-end gap-3">
+                                        <span class="text-sm font-bold text-slate-700">Port Name:</span>
+                                        <span class="font-bold text-slate-800"><?php echo esc_html($fob_port ?: 'Not Specified'); ?></span>
+                                    </div>
+                                    <?php endif; ?>
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -323,6 +367,11 @@ $site_name = get_bloginfo('name');
                     const paymentRows = document.querySelectorAll('.payment-row');
                     const fileInput = document.getElementById('wcsom-file-input');
                     const fileList = document.getElementById('wcsom-selected-files');
+                    
+                    const incotermRadios = document.querySelectorAll('input[name="wcsom_incoterm"]');
+                    const incotermDisplay = document.getElementById('grand-total-incoterm');
+                    const fobWrapper = document.getElementById('wcsom-fob-port-wrapper');
+                    const fobInput = document.getElementById('wcsom-fob-port-input');
 
                     // 1. Format Currency Helper
                     function formatMoney(amount) {
@@ -370,6 +419,21 @@ $site_name = get_bloginfo('name');
                             if (e.target.classList.contains('val-price')) {
                                 updateTotals();
                             }
+                        });
+                    }
+                    
+                    // Attach listener to update Incoterm text display instantly and toggle FOB Port field
+                    if (incotermRadios) {
+                        incotermRadios.forEach(radio => {
+                            radio.addEventListener('change', function() {
+                                if (incotermDisplay) incotermDisplay.innerText = this.value;
+                                if (this.value === 'FOB') {
+                                    if(fobWrapper) fobWrapper.style.display = 'flex';
+                                } else {
+                                    if(fobWrapper) fobWrapper.style.display = 'none';
+                                    if(fobInput) fobInput.value = ''; // clear when hiding
+                                }
+                            });
                         });
                     }
 

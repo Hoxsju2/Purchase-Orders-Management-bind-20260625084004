@@ -14,15 +14,15 @@
     .wcsom-portal .badge.pending { background: #fef3c7; color: #92400e; }
     .wcsom-portal .badge.completed, .wcsom-portal .badge.delivered, .wcsom-portal .badge.finished { background: #d1fae5; color: #065f46; }
     .wcsom-portal .badge.in-progress { background: #dbeafe; color: #1e40af; }
+    .wcsom-portal .pl-list { list-style:none; padding:0; margin:0; }
+    .wcsom-portal .pl-item { padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
 </style>
 
 <div class="wcsom-portal">
     <?php
     $current_user_id = get_current_user_id();
     
-    // We strictly use the shortcode just to list all the supplier's POs.
-    // The interactive view for each PO will be handed off to the beautiful standalone template.
-    
+    // We strictly use the shortcode just to list all the supplier's POs and Packing lists.
     $args = array(
         'post_type'      => 'wcsom_order',
         'post_status'    => 'publish',
@@ -35,7 +35,11 @@
         )
     );
     $orders = get_posts($args);
+    
+    // Fetch associated packing lists from the separate plugin
+    $packing_lists = wcsom_get_supplier_packing_lists($current_user_id);
     ?>
+    
     <div class="card">
         <h2 style="margin-top: 0; font-size: 24px; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 20px;">Your Purchase Orders Directory</h2>
         <?php if (empty($orders)): ?>
@@ -68,6 +72,25 @@
                     <?php endforeach; ?>
                 </tbody>
             </table>
+        <?php endif; ?>
+    </div>
+    
+    <div class="card">
+        <h2 style="margin-top: 0; font-size: 20px; font-weight: 700; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">Your Packing Lists</h2>
+        <?php if (empty($packing_lists)): ?>
+            <p style="color: #64748b; padding: 20px 0;">No active packing lists found in the system for your profile.</p>
+        <?php else: ?>
+            <ul class="pl-list" style="margin-top:20px;">
+                <?php foreach ($packing_lists as $pl): ?>
+                    <li class="pl-item">
+                        <div>
+                            <strong style="font-size:15px; color:#4f46e5;"><?php echo esc_html($pl->post_title); ?></strong>
+                            <div style="font-size:13px; color:#64748b; margin-top:4px;">Generated: <?php echo date('M d, Y', strtotime($pl->post_date)); ?></div>
+                        </div>
+                        <a href="<?php echo esc_url(get_permalink($pl->ID)); ?>" target="_blank" class="btn-outline">View Packing List</a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
         <?php endif; ?>
     </div>
 </div>
