@@ -8,14 +8,15 @@ class WCSOM_Setup {
     }
 
     public static function activate() {
-        // Register custom post type on activation so rewrite rules can be flushed
+        if (!get_role('wcsom_staff')) {
+            add_role('wcsom_staff', 'Supplier Orders Staff', array('read' => true, 'upload_files' => true));
+        }
         $setup = new self();
         $setup->register_post_types();
         flush_rewrite_rules();
     }
 
     public function register_post_types() {
-        // Register Purchase Order CPT
         $labels = array(
             'name'                  => _x('Supplier POs', 'Post Type General Name', 'wcsom'),
             'singular_name'         => _x('Supplier PO', 'Post Type Singular Name', 'wcsom'),
@@ -30,8 +31,8 @@ class WCSOM_Setup {
             'labels'                => $labels,
             'supports'              => array('title'),
             'hierarchical'          => false,
-            'public'                => false, // Keep it private/admin only
-            'show_ui'               => false, // We will use our custom UI
+            'public'                => false, 
+            'show_ui'               => false, 
             'show_in_menu'          => false,
             'menu_position'         => 56,
             'show_in_admin_bar'     => false,
@@ -43,5 +44,25 @@ class WCSOM_Setup {
             'capability_type'       => 'post',
         );
         register_post_type('wcsom_order', $args);
+
+        $bulk_labels = array(
+            'name'                  => _x('Bulk Orders', 'Post Type General Name', 'wcsom'),
+            'singular_name'         => _x('Bulk Order', 'Post Type Singular Name', 'wcsom'),
+        );
+        $bulk_args = array(
+            'label'                 => __('Bulk Order', 'wcsom'),
+            'labels'                => $bulk_labels,
+            'supports'              => array('title'),
+            'hierarchical'          => false,
+            'public'                => false,
+            'show_ui'               => false,
+            'show_in_menu'          => false,
+            'can_export'            => true,
+            'has_archive'           => false,
+            'exclude_from_search'   => true,
+            'publicly_queryable'    => false,
+            'capability_type'       => 'post',
+        );
+        register_post_type('wcsom_bulk_order', $bulk_args);
     }
 }
