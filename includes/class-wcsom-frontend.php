@@ -176,6 +176,7 @@ class WCSOM_Frontend {
         $notes = isset($_POST['po_notes']) ? sanitize_textarea_field($_POST['po_notes']) : '';
         $incoterm = isset($_POST['wcsom_incoterm']) ? sanitize_text_field($_POST['wcsom_incoterm']) : 'EXW';
         $fob_port = isset($_POST['wcsom_fob_port']) ? sanitize_text_field($_POST['wcsom_fob_port']) : '';
+        $allow_supp_qty = get_post_meta($po_id, '_wcsom_allow_supp_qty', true) === 'yes';
         
         $old_items = get_post_meta($po_id, '_wcsom_items', true) ?: [];
         $order_items = [];
@@ -185,6 +186,15 @@ class WCSOM_Frontend {
         foreach ($old_items as $oi) {
             $product_id = intval($oi['product_id']);
             $qty = intval($oi['qty']); 
+            
+            // Allow supplier to override quantity if the setting is ON
+            if ($allow_supp_qty && isset($items[$product_id]['qty']) && trim($items[$product_id]['qty']) !== '') {
+                $posted_qty = intval($items[$product_id]['qty']);
+                if ($posted_qty >= 0) {
+                    $qty = $posted_qty;
+                }
+            }
+
             $added_by_supp = !empty($oi['added_by_supplier']);
             $orig_price = isset($oi['orig_price']) ? floatval($oi['orig_price']) : floatval(get_post_meta($product_id, '_wcsom_supplier_price', true));
 

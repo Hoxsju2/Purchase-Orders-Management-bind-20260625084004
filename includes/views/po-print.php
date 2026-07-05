@@ -205,7 +205,7 @@ $qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&dat
                 <tr>
                     <th style="width: 50px;">Image</th>
                     <th>Product Description</th>
-                    <th>SKU</th>
+                    <th>SKU / HS</th>
                     <th style="text-align: center;">Qty</th>
                     <th style="text-align: right;">Unit Price</th>
                     <th style="text-align: right;">Total</th>
@@ -230,6 +230,7 @@ $qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&dat
                     $is_published = ($product->get_status() === 'publish');
                     $is_added_by_supplier = !empty($item['added_by_supplier']);
                     $supp_model = isset($item['supplier_model']) ? $item['supplier_model'] : get_post_meta($product->get_id(), '_wcsom_supplier_model', true);
+                    $hs_code = get_post_meta($product->get_id(), '_wcsom_hs_code', true);
                     $permalink = get_permalink($product->get_id());
                 ?>
                 <tr>
@@ -255,7 +256,12 @@ $qr_url = 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&dat
                             <br><span style="font-size: 11px; font-weight:600; color: #dc2626; font-style:italic;">(Added by Supplier)</span>
                         <?php endif; ?>
                     </td>
-                    <td style="color: #64748b; font-size: 13px;"><?php echo esc_html($sku); ?></td>
+                    <td style="color: #64748b; font-size: 13px;">
+                        <?php echo esc_html($sku); ?>
+                        <?php if($hs_code): ?>
+                            <br><span style="font-size:11px;">HS: <?php echo esc_html($hs_code); ?></span>
+                        <?php endif; ?>
+                    </td>
                     <td style="text-align: center; font-weight: 600;"><?php echo $qty; ?></td>
                     <td style="text-align: right;"><?php echo wcsom_format_usd($price); ?></td>
                     <td style="text-align: right;"><strong style="font-size: 15px;"><?php echo wcsom_format_usd($line_total); ?></strong></td>

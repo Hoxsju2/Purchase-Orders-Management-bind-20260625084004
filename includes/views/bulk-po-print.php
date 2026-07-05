@@ -109,7 +109,7 @@ $total_bulk_paid = 0;
             <thead>
                 <tr>
                     <th>Product</th>
-                    <th>SKU</th>
+                    <th>SKU / HS</th>
                     <th style="text-align: center;">Qty</th>
                     <th style="text-align: right;">Unit Price</th>
                     <th style="text-align: right;">Subtotal</th>
@@ -168,16 +168,22 @@ $total_bulk_paid = 0;
                         $total_bulk_amount += $line_total;
                         
                         $supp_model = isset($item['supplier_model']) ? $item['supplier_model'] : get_post_meta($product->get_id(), '_wcsom_supplier_model', true);
+                        $hs_code = get_post_meta($product->get_id(), '_wcsom_hs_code', true);
                 ?>
                     <tr>
                         <td>
                             <strong style="font-size: 13px; font-weight: 600; color: #0f172a;"><?php echo esc_html($product->get_name()); ?></strong>
                             <?php if($supp_model) echo '<br><span style="font-size: 11px; color:#64748b;">Model: '.esc_html($supp_model).'</span>'; ?>
                         </td>
-                        <td style="color: #64748b; font-size: 12px;"><?php echo esc_html($product->get_sku()); ?></td>
+                        <td style="color: #64748b; font-size: 12px;">
+                            <?php echo esc_html($product->get_sku()); ?>
+                            <?php if($hs_code): ?>
+                                <br><span style="font-size:11px;">HS: <?php echo esc_html($hs_code); ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td style="text-align:center; font-weight: 600;"><?php echo $qty; ?></td>
                         <td style="text-align:right;"><?php echo wcsom_format_usd($price); ?></td>
-                        <td style="text-align:right; font-weight: 600;"><?php echo wcsom_format_usd($line_total); ?></td>
+                        <td style="text-align:right; font-weight: 600; color: #0f172a;"><?php echo wcsom_format_usd($line_total); ?></td>
                     </tr>
                 <?php endforeach; ?>
                 <tr>

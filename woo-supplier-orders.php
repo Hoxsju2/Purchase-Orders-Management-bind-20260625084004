@@ -2,7 +2,7 @@
 /**
  * Plugin Name: WooCommerce Supplier Orders Manager
  * Description: Manage suppliers, assign products, and create purchase orders seamlessly.
- * Version: 1.2.3
+ * Version: 1.4.4
  * Author: Bind AI
  * License: GPL v2 or later
  * Text Domain: wcsom
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
     exit; // Exit if accessed directly
 }
 
-define('WCSOM_VERSION', '1.2.3');
+define('WCSOM_VERSION', '1.4.4');
 define('WCSOM_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WCSOM_PLUGIN_URL', plugin_dir_url(__FILE__));
 

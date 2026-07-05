@@ -3,14 +3,73 @@ jQuery(document).ready(function($) {
     let currentSupplierId = null;
 
     if($.fn.selectWoo) {
-        // Initialize dropdowns in Quick Create tab
-        $('#wcsom-qc-category, #wcsom-qc-supplier').selectWoo({
+        // Initialize dropdowns in Quick Create and Duplicate modals
+        $('#wcsom-qc-category, #wcsom-qc-supplier, #wcsom-dup-category, #wcsom-dup-supplier, #wcsom-be-category, #wcsom-be-supplier').selectWoo({
             width: '100%'
         });
         
         // Initialize dropdown for modal if exists
         if ($('#wcsom-new-po-supplier-select').length) {
             $('#wcsom-new-po-supplier-select').selectWoo({ width: '100%' });
+        }
+        
+        // AI Import Dropdowns
+        if ($('#wcsom-ai-supplier').length) {
+            $('#wcsom-ai-supplier').selectWoo({ width: '100%' });
+        }
+        if ($('#wcsom-ai-global-category').length) {
+            $('#wcsom-ai-global-category').selectWoo({ width: '250px' });
+        }
+
+        // Duplicate Entry Point 2: Search to Auto-fill Quick Create
+        if ($('#wcsom-qc-duplicate-search').length) {
+            $('#wcsom-qc-duplicate-search').selectWoo({
+                placeholder: "Search ANY product to duplicate...",
+                allowClear: true,
+                ajax: {
+                    url: wcsom_ajax.ajax_url,
+                    dataType: 'json',
+                    delay: 250,
+                    data: function (params) {
+                        return { action: 'wcsom_search_all_wc_products', nonce: wcsom_ajax.nonce, keyword: params.term };
+                    },
+                    processResults: function (data) { return { results: data.data }; }
+                },
+                minimumInputLength: 2
+            }).on('select2:select', function (e) {
+                let prod = e.params.data;
+                
+                // Fetch full details of selected product to duplicate
+                $.post(wcsom_ajax.ajax_url, {
+                    action: 'wcsom_get_product_details',
+                    nonce: wcsom_ajax.nonce,
+                    product_id: prod.id
+                }, function(res) {
+                    if(res.success) {
+                        let d = res.data;
+                        $('#wcsom-qc-title').val(d.title + ' (Copy)');
+                        $('#wcsom-qc-sku').val(d.sku ? d.sku + '-COPY' : '');
+                        $('#wcsom-qc-hs-code').val(d.hs_code);
+                        $('#wcsom-qc-price').val(d.price);
+                        $('#wcsom-qc-model').val(d.model);
+                        $('#wcsom-qc-price-type').val(d.price_type);
+                        
+                        // Select2 updating
+                        if(d.category_id) $('#wcsom-qc-category').val(d.category_id).trigger('change');
+                        if(d.supplier_id) $('#wcsom-qc-supplier').val(d.supplier_id).trigger('change');
+                        
+                        $('#wcsom-qc-image-id').val(d.image_id);
+                        if (d.image_url) {
+                            $('#wcsom-qc-img-preview').html(`<img src="${d.image_url}" style="width:100%; height:100%; object-fit:cover;">`);
+                            $('#wcsom-qc-btn-remove-image').show();
+                        } else {
+                            $('#wcsom-qc-img-preview').html('<span class="dashicons dashicons-format-image" style="color:#94a3b8; font-size:24px; width:24px; height:24px;"></span>');
+                            $('#wcsom-qc-btn-remove-image').hide();
+                        }
+                    }
+                });
+                $(this).val(null).trigger('change');
+            });
         }
     }
 
@@ -22,11 +81,278 @@ jQuery(document).ready(function($) {
             let supplierCard = $('.wcsom-supplier-card[data-id="' + openSupplier + '"]');
             if (supplierCard.length) {
                 supplierCard.click();
-                // Remove parameter from URL to clean it up
                 window.history.replaceState({}, document.title, window.location.pathname + "?page=wcsom-dashboard&tab=suppliers");
             }
         }, 500);
     }
+
+    // --- AI Product Import Logic ---
+    let aiProductsData = [];
+    
+    // API Tester functionality
+    $('#wcsom-btn-test-api').on('click', function(e) {
+        e.preventDefault();
+        let apiKey = $('#wcsom-ai-api-key').val();
+        let model = $('#wcsom-ai-model').val();
+        let $resBox = $('#wcsom-api-test-result');
+        
+        if (!apiKey) {
+            $resBox.css('color', '#ef4444').text('Please enter an API key to test.').show();
+            return;
+        }
+
+        let $btn = $(this);
+        let ogText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update dashicons-spin" style="margin-top:2px;"></span> Testing...');
+        $resBox.hide();
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_test_api',
+            nonce: wcsom_ajax.nonce,
+            api_key: apiKey,
+            model: model
+        }, function(res) {
+            $btn.prop('disabled', false).html(ogText);
+            $resBox.show();
+            if (res.success) {
+                $resBox.css('color', '#16a34a').html('<span class="dashicons dashicons-yes" style="margin-top:2px;"></span> ' + res.data);
+            } else {
+                $resBox.css('color', '#dc2626').html('<span class="dashicons dashicons-warning" style="margin-top:2px;"></span> ' + res.data);
+            }
+        });
+    });
+
+    $('#wcsom-ai-upload-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        let fileInput = $('#wcsom-ai-file')[0];
+        if (!fileInput.files.length) {
+            alert('Please select a file.');
+            return;
+        }
+
+        let supplierId = $('#wcsom-ai-supplier').val();
+        let apiKey = $('#wcsom-ai-api-key').val();
+        let model = $('#wcsom-ai-model').val();
+        
+        if (!supplierId || !apiKey) {
+            alert('Supplier and API Key are required.');
+            return;
+        }
+
+        let formData = new FormData();
+        formData.append('action', 'wcsom_ai_parse_quote');
+        formData.append('nonce', wcsom_ajax.nonce);
+        formData.append('api_key', apiKey);
+        formData.append('ai_model', model);
+        formData.append('quote_file', fileInput.files[0]);
+
+        // UI Updates for Progress
+        $('#wcsom-ai-btn-parse').prop('disabled', true).html('<span class="dashicons dashicons-update dashicons-spin" style="margin-top:2px;"></span> Parsing...');
+        $('#wcsom-ai-progress-container').show();
+        let $bar = $('#wcsom-ai-progress-bar');
+        let $pct = $('#wcsom-ai-status-pct');
+        
+        $bar.css('width', '5%');
+        $pct.text('5%');
+        
+        // Fake progress up to 95% while waiting for AI
+        let progress = 5;
+        let progressInterval = setInterval(function() {
+            progress += 5;
+            if (progress > 95) progress = 95;
+            $bar.css('width', progress + '%');
+            $pct.text(progress + '%');
+        }, 3000); // Slower progress to account for full document reading
+
+        $.ajax({
+            url: wcsom_ajax.ajax_url,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(res) {
+                clearInterval(progressInterval);
+                $bar.css('width', '100%');
+                $pct.text('100%');
+                
+                $('#wcsom-ai-btn-parse').prop('disabled', false).html('<span class="dashicons dashicons-admin-generic" style="margin-top:2px;"></span> Parse with AI');
+                
+                if (res.success) {
+                    aiProductsData = res.data;
+                    renderAiReviewTable();
+                    setTimeout(function() {
+                        $('#wcsom-ai-upload-form').slideUp(200);
+                        $('#wcsom-ai-progress-container').slideUp(200);
+                        $('#wcsom-ai-review-container').slideDown(300);
+                    }, 500);
+                } else {
+                    alert('Error: ' + res.data);
+                    $('#wcsom-ai-progress-container').hide();
+                }
+            },
+            error: function(jqXHR, textStatus, errorThrown) {
+                clearInterval(progressInterval);
+                let msg = '';
+                if (jqXHR.status === 504 || jqXHR.status === 502) {
+                    msg = `Server Error (504 Timeout): Your web host killed the connection because the AI took too long to read the entire document. Try a smaller file, take a screenshot of the table, or ask your host to increase the Nginx/Apache Timeout limit to 150 seconds.`;
+                } else if (jqXHR.status === 503) {
+                    msg = `API Error (503 Service Unavailable): Alibaba's DashScope API is currently overloaded and dropped the request for this specific model. Please try a different model (like Qwen VL Max) or try again later.`;
+                } else if (jqXHR.status === 500) {
+                    msg = `Server Error (500): Your WordPress server ran out of memory. Try a smaller file.`;
+                } else {
+                    msg = `A server error occurred while processing the file. HTTP Status: ${jqXHR.status}`;
+                }
+                alert(msg);
+                $('#wcsom-ai-btn-parse').prop('disabled', false).html('<span class="dashicons dashicons-admin-generic" style="margin-top:2px;"></span> Parse with AI');
+                $('#wcsom-ai-progress-container').hide();
+            }
+        });
+    });
+
+    function renderAiReviewTable() {
+        let tbody = $('#wcsom-ai-results-table tbody');
+        tbody.empty();
+        
+        if (!aiProductsData || !aiProductsData.length) {
+            tbody.html('<tr><td colspan="8" class="wcsom-empty-cell">No products were extracted. Please check the file.</td></tr>');
+            return;
+        }
+
+        // Get the global supplier value and clone the options for the per-row dropdown
+        let globalSupplierId = $('#wcsom-ai-supplier').val();
+        let supplierOptionsHtml = '';
+        $('#wcsom-ai-supplier option').each(function() {
+            supplierOptionsHtml += `<option value="${$(this).val()}">${$(this).text()}</option>`;
+        });
+
+        aiProductsData.forEach(function(item, index) {
+            let name = item.name || '';
+            let model = item.model || '';
+            let price = parseFloat(item.price) || 0.00;
+
+            let tr = `
+            <tr data-index="${index}" class="wcsom-ai-row">
+                <td>
+                    <div class="wcsom-ai-img-placeholder" title="Click to upload/set image">
+                        <span class="dashicons dashicons-format-image" style="color:#94a3b8;"></span>
+                    </div>
+                    <input type="hidden" class="ai-val-image">
+                </td>
+                <td><textarea class="wcsom-input ai-val-name" rows="3" style="width:100%; min-width:250px; resize:vertical; font-size:13px;">${name}</textarea></td>
+                <td><input type="text" class="wcsom-input ai-val-model" value="${model}" style="font-size:13px;"></td>
+                <td><input type="number" step="0.01" class="wcsom-input ai-val-price" value="${price.toFixed(2)}" style="font-size:13px;"></td>
+                <td><input type="text" class="wcsom-input ai-val-sku" placeholder="SKU" style="font-size:13px;"></td>
+                <td>
+                    <select class="wcsom-input ai-val-cat" style="padding:6px; font-size:13px; height:auto;">
+                        ${wcsom_ajax.cat_options}
+                    </select>
+                </td>
+                <td>
+                    <select class="wcsom-input ai-val-supplier" style="padding:6px; font-size:13px; height:auto;">
+                        ${supplierOptionsHtml}
+                    </select>
+                </td>
+                <td><button type="button" class="wcsom-btn wcsom-btn-outline wcsom-ai-remove-row" style="padding:4px 8px; color:#ef4444; border-color:#fca5a5;">&times;</button></td>
+            </tr>`;
+            
+            tbody.append(tr);
+            // Default to the global supplier selection
+            tbody.find('tr:last .ai-val-supplier').val(globalSupplierId);
+        });
+    }
+
+    $(document).on('click', '.wcsom-ai-remove-row', function() {
+        $(this).closest('tr').remove();
+    });
+
+    // Image Uploader for AI Grid
+    let ai_image_frame;
+    $(document).on('click', '.wcsom-ai-img-placeholder', function() {
+        let $placeholder = $(this);
+        let $hiddenInput = $placeholder.siblings('.ai-val-image');
+
+        if (ai_image_frame) { 
+            // Workaround for multiple instances
+            ai_image_frame.open(); 
+            // Clear previous events to prevent binding multiple times
+            ai_image_frame.off('select'); 
+        } else {
+            ai_image_frame = wp.media({ title: 'Select Product Image', button: { text: 'Set Image' }, multiple: false });
+        }
+
+        ai_image_frame.on('select', function() {
+            let attachment = ai_image_frame.state().get('selection').first().toJSON();
+            $hiddenInput.val(attachment.id);
+            let imgUrl = attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url;
+            $placeholder.html(`<img src="${imgUrl}">`);
+        });
+        
+        ai_image_frame.open();
+    });
+
+    $('#wcsom-ai-apply-cat').on('click', function() {
+        let globalCat = $('#wcsom-ai-global-category').val();
+        if (globalCat) {
+            $('.ai-val-cat').val(globalCat);
+        }
+    });
+
+    $('#wcsom-ai-btn-discard').on('click', function() {
+        if(confirm("Discard all extracted data?")) {
+            $('#wcsom-ai-review-container').hide();
+            $('#wcsom-ai-upload-form').slideDown(200);
+            $('#wcsom-ai-file').val('');
+            $('#wcsom-ai-progress-bar').css('width', '0%');
+            aiProductsData = [];
+        }
+    });
+
+    $('#wcsom-ai-btn-save').on('click', function() {
+        let globalSupplierId = $('#wcsom-ai-supplier').val();
+        let itemsToSave = [];
+        
+        $('.wcsom-ai-row').each(function() {
+            let name = $(this).find('.ai-val-name').val().trim();
+            if (name) {
+                itemsToSave.push({
+                    name: name,
+                    model: $(this).find('.ai-val-model').val().trim(),
+                    price: $(this).find('.ai-val-price').val(),
+                    sku: $(this).find('.ai-val-sku').val().trim(),
+                    category_id: $(this).find('.ai-val-cat').val(),
+                    supplier_id: $(this).find('.ai-val-supplier').val(), // Save the individual row's supplier
+                    image_id: $(this).find('.ai-val-image').val()
+                });
+            }
+        });
+
+        if (itemsToSave.length === 0) {
+            alert('No valid products to save.');
+            return;
+        }
+
+        let $btn = $(this);
+        let og = $btn.html();
+        $btn.prop('disabled', true).html('Saving to WooCommerce...');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_ai_bulk_save',
+            nonce: wcsom_ajax.nonce,
+            supplier_id: globalSupplierId, // Passed as fallback
+            items: itemsToSave
+        }, function(res) {
+            if (res.success) {
+                alert(res.data);
+                // Redirect to global search to view the new items (you can filter by assigned items generally)
+                window.location.href = wcsom_ajax.url_ai_import + "&assignment=assigned"; 
+            } else {
+                alert('Error: ' + res.data);
+                $btn.prop('disabled', false).html(og);
+            }
+        });
+    });
+
 
     // --- Orders Tab: Create PO Modal ---
     $(document).on('click', '#wcsom-btn-new-po-from-dir', function(e) {
@@ -97,7 +423,6 @@ jQuery(document).ready(function($) {
             send_invite: send_invite
         }, function(response) {
             if (response.success) {
-                // Reload to refresh the grid
                 window.location.reload();
             } else {
                 alert('Error: ' + response.data);
@@ -186,34 +511,6 @@ jQuery(document).ready(function($) {
             }
         });
     }
-    
-    $(document).on('click', '.wcsom-save-supp-price-btn', function() {
-        let btn = $(this);
-        let pid = btn.data('id');
-        let price = btn.siblings('div').find('.wcsom-inline-supp-price').val();
-        let model = btn.siblings('.wcsom-inline-supp-model').val();
-        
-        let ogText = btn.text();
-        btn.prop('disabled', true).text('...');
-        
-        $.post(wcsom_ajax.ajax_url, {
-            action: 'wcsom_update_supplier_price_inline',
-            nonce: wcsom_ajax.nonce,
-            product_id: pid,
-            supplier_price: price,
-            supplier_model: model
-        }, function(res) {
-            btn.prop('disabled', false).text(ogText);
-            if(res.success) {
-                btn.css({'background':'#16a34a', 'color':'#fff', 'border-color':'#16a34a'}).text('Saved!');
-                let cb = btn.closest('tr').find('.wcsom-po-select');
-                cb.data('orig-price', price).data('price', price).data('model', model);
-                setTimeout(() => btn.css({'background':'', 'color':'', 'border-color':''}).text('Save Details'), 2000);
-            } else {
-                alert('Error saving details.');
-            }
-        });
-    });
 
     let searchTimeout;
     $('#wcsom-search-assign-input').on('keyup', function() {
@@ -259,7 +556,6 @@ jQuery(document).ready(function($) {
             if (response.success) {
                 $('#wcsom-search-assign-input').val('');
                 $('#wcsom-search-assign-results').empty();
-                // Ensure default sort shows newest assigned at top
                 $('#wcsom-sort-supplier-products').val('date_desc');
                 loadSupplierProducts(currentSupplierId);
             } else {
@@ -291,13 +587,333 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // --- QUICK EDIT PRODUCT LOGIC ---
+    $(document).on('click', '.wcsom-edit-product-btn', function() {
+        let btn = $(this);
+        $('#wcsom-qe-product-id').val(btn.data('id'));
+        $('#wcsom-qe-title').val(btn.data('title'));
+        $('#wcsom-qe-sku').val(btn.data('sku'));
+        $('#wcsom-qe-hs-code').val(btn.data('hscode'));
+        $('#wcsom-qe-price').val(btn.data('price'));
+        $('#wcsom-qe-model').val(btn.data('model'));
+        
+        $('#wcsom-quick-edit-modal').fadeIn(200);
+    });
+
+    $(document).on('click', '#wcsom-cancel-quick-edit, #wcsom-close-quick-edit, #wcsom-quick-edit-modal .wcsom-modal-overlay', function(e) {
+        e.preventDefault();
+        $('#wcsom-quick-edit-modal').fadeOut(200);
+    });
+
+    $(document).on('click', '#wcsom-confirm-quick-edit', function(e) {
+        e.preventDefault();
+        let pid = $('#wcsom-qe-product-id').val();
+        let title = $('#wcsom-qe-title').val().trim();
+        let sku = $('#wcsom-qe-sku').val().trim();
+        let hs_code = $('#wcsom-qe-hs-code').val().trim();
+        let price = $('#wcsom-qe-price').val();
+        let model = $('#wcsom-qe-model').val().trim();
+
+        if (!title) {
+            alert('Product Title is required.');
+            return;
+        }
+
+        let $btn = $(this);
+        let ogText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update dashicons-spin"></span> Saving...');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_save_product_quick_edit',
+            nonce: wcsom_ajax.nonce,
+            product_id: pid,
+            title: title,
+            sku: sku,
+            hs_code: hs_code,
+            price: price,
+            model: model
+        }, function(res) {
+            $btn.prop('disabled', false).html(ogText);
+            if (res.success) {
+                $('#wcsom-quick-edit-modal').fadeOut(200);
+                
+                if ($('#wcsom-supplier-detail-view').is(':visible')) {
+                    loadSupplierProducts(currentSupplierId);
+                } else if ($('#wcsom-global-search-results').length) {
+                    triggerGlobalSearch();
+                }
+            } else {
+                alert('Error saving product details.');
+            }
+        });
+    });
+
+    // --- DUPLICATE PRODUCT LOGIC (Global Search Entry Point 1) ---
+    $(document).on('click', '.wcsom-duplicate-product-btn', function() {
+        let pid = $(this).data('id');
+        let btn = $(this);
+        let og = btn.html();
+        btn.prop('disabled', true).text('Loading...');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_get_product_details',
+            nonce: wcsom_ajax.nonce,
+            product_id: pid
+        }, function(res) {
+            btn.prop('disabled', false).html(og);
+            if (res.success) {
+                let d = res.data;
+                $('#wcsom-dup-title').val(d.title + ' (Copy)');
+                $('#wcsom-dup-sku').val(d.sku ? d.sku + '-COPY' : '');
+                $('#wcsom-dup-hs-code').val(d.hs_code);
+                $('#wcsom-dup-price').val(d.price);
+                $('#wcsom-dup-model').val(d.model);
+                $('#wcsom-dup-price-type').val(d.price_type);
+                
+                if($.fn.selectWoo) {
+                    if(d.category_id) $('#wcsom-dup-category').val(d.category_id).trigger('change');
+                    if(d.supplier_id) $('#wcsom-dup-supplier').val(d.supplier_id).trigger('change');
+                }
+
+                $('#wcsom-dup-image-id').val(d.image_id);
+                if (d.image_url) {
+                    $('#wcsom-dup-img-preview').html(`<img src="${d.image_url}" style="width:100%; height:100%; object-fit:cover;">`);
+                    $('#wcsom-dup-btn-remove-image').show();
+                } else {
+                    $('#wcsom-dup-img-preview').html('<span class="dashicons dashicons-format-image" style="color:#94a3b8; font-size:24px; width:24px; height:24px;"></span>');
+                    $('#wcsom-dup-btn-remove-image').hide();
+                }
+
+                $('#wcsom-duplicate-modal').fadeIn(200);
+            } else {
+                alert('Error fetching product details.');
+            }
+        });
+    });
+
+    $(document).on('click', '#wcsom-cancel-duplicate-edit, #wcsom-close-duplicate-edit, #wcsom-duplicate-modal .wcsom-modal-overlay', function(e) {
+        e.preventDefault();
+        $('#wcsom-duplicate-modal').fadeOut(200);
+    });
+
+    $('#wcsom-duplicate-form').on('submit', function(e) {
+        e.preventDefault();
+        let $btn = $('#wcsom-dup-submit');
+        let og = $btn.html();
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update dashicons-spin"></span> Creating...');
+
+        // Reuse the quick create endpoint!
+        let data = {
+            action: 'wcsom_quick_create_product',
+            nonce: wcsom_ajax.nonce,
+            title: $('#wcsom-dup-title').val(),
+            sku: $('#wcsom-dup-sku').val(),
+            hs_code: $('#wcsom-dup-hs-code').val(),
+            price: $('#wcsom-dup-price').val(),
+            model_number: $('#wcsom-dup-model').val(),
+            price_type: $('#wcsom-dup-price-type').val(),
+            category_id: $('#wcsom-dup-category').val(),
+            supplier_id: $('#wcsom-dup-supplier').val(),
+            image_id: $('#wcsom-dup-image-id').val()
+        };
+
+        $.post(wcsom_ajax.ajax_url, data, function(res) {
+            $btn.prop('disabled', false).html(og);
+            if (res.success) {
+                alert('Product duplicated successfully as Pending!');
+                $('#wcsom-duplicate-modal').fadeOut(200);
+                if ($('#wcsom-global-search-results').length && $('#wcsom-global-search-results').is(':visible')) {
+                    triggerGlobalSearch();
+                }
+            } else {
+                alert('Error: ' + res.data);
+            }
+        });
+    });
+
+
+    // --- Global Search Filtering & Bulk Actions ---
+    function triggerGlobalSearch() {
+        let keyword = $('#wcsom-global-search-input').val();
+        let category = $('#wcsom-filter-category').val();
+        let assignment = $('#wcsom-filter-assignment').val();
+
+        let $btn = $('#wcsom-btn-global-search');
+        let originalText = $btn.html();
+        $btn.prop('disabled', true).html('Filtering...');
+        $('#wcsom-global-search-results').html('<tr><td colspan="7" class="wcsom-empty-cell"><span class="dashicons dashicons-update dashicons-spin"></span> Searching products...</td></tr>');
+        
+        // Reset bulk selection states
+        $('#wcsom-search-select-all').prop('checked', false);
+        $('#wcsom-search-bulk-count').text('0 selected');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_global_product_search',
+            nonce: wcsom_ajax.nonce,
+            keyword: keyword,
+            category: category,
+            assignment: assignment
+        }, function(response) {
+            $btn.prop('disabled', false).html(originalText);
+            if (response.success) {
+                $('#wcsom-global-search-results').html(response.data);
+            }
+        });
+    }
+
+    $('#wcsom-btn-global-search').on('click', function() { triggerGlobalSearch(); });
+    $('#wcsom-global-search-input').on('keypress', function(e) { if(e.which == 13) triggerGlobalSearch(); });
+    $('#wcsom-filter-category, #wcsom-filter-assignment').on('change', function() { triggerGlobalSearch(); });
+    if ($('#wcsom-global-search-results').length) triggerGlobalSearch();
+
+    // Checkboxes selection
+    $(document).on('change', '.wcsom-search-select, #wcsom-search-select-all', function() {
+        if ($(this).attr('id') === 'wcsom-search-select-all') {
+            $('.wcsom-search-select').prop('checked', $(this).prop('checked'));
+        }
+        let count = $('.wcsom-search-select:checked').length;
+        $('#wcsom-search-bulk-count').text(count + ' selected');
+    });
+
+    // Trigger Bulk Edit Modal
+    $('#wcsom-btn-apply-search-bulk').on('click', function() {
+        let ids = [];
+        $('.wcsom-search-select:checked').each(function() { ids.push($(this).val()); });
+        if (ids.length === 0) { 
+            alert('Please select at least one product.'); 
+            return; 
+        }
+
+        let action = $('#wcsom-search-bulk-action').val();
+        if (action === 'edit') {
+            // Reset fields
+            $('#wcsom-bulk-edit-form')[0].reset();
+            if ($.fn.selectWoo) {
+                $('#wcsom-be-category').val('').trigger('change');
+                $('#wcsom-be-supplier').val('').trigger('change');
+            }
+            $('#wcsom-be-image-id').val('');
+            $('#wcsom-be-img-preview').html('<span class="dashicons dashicons-format-image" style="color:#94a3b8; font-size:20px; width:20px; height:20px;"></span>');
+            $('#wcsom-be-btn-remove-image').hide();
+            
+            $('#wcsom-bulk-edit-modal').fadeIn(200);
+        } else {
+            alert('Please select a bulk action from the dropdown.');
+        }
+    });
+
+    $(document).on('click', '#wcsom-cancel-bulk-edit, #wcsom-close-bulk-edit, #wcsom-bulk-edit-modal .wcsom-modal-overlay', function(e) {
+        e.preventDefault();
+        $('#wcsom-bulk-edit-modal').fadeOut(200);
+    });
+
+    // Bulk Edit Image Uploader
+    let bulk_image_frame;
+    $('#wcsom-be-btn-image').on('click', function(e) {
+        e.preventDefault();
+        if (bulk_image_frame) { bulk_image_frame.open(); return; }
+        bulk_image_frame = wp.media({ title: 'Select Bulk Product Image', button: { text: 'Use this image' }, multiple: false });
+        bulk_image_frame.on('select', function() {
+            let attachment = bulk_image_frame.state().get('selection').first().toJSON();
+            $('#wcsom-be-image-id').val(attachment.id);
+            $('#wcsom-be-img-preview').html(`<img src="${attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url}" style="width:100%; height:100%; object-fit:cover;">`);
+            $('#wcsom-be-btn-remove-image').show();
+        });
+        bulk_image_frame.open();
+    });
+
+    $('#wcsom-be-btn-remove-image').on('click', function() {
+        $('#wcsom-be-image-id').val('');
+        $('#wcsom-be-img-preview').html('<span class="dashicons dashicons-format-image" style="color:#94a3b8; font-size:20px; width:20px; height:20px;"></span>');
+        $(this).hide();
+    });
+
+    // Submit Bulk Edit
+    $('#wcsom-bulk-edit-form').on('submit', function(e) {
+        e.preventDefault();
+        let ids = [];
+        $('.wcsom-search-select:checked').each(function() { ids.push($(this).val()); });
+
+        let $btn = $('#wcsom-be-submit');
+        let ogText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="dashicons dashicons-update dashicons-spin"></span> Processing...');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_bulk_edit_products',
+            nonce: wcsom_ajax.nonce,
+            product_ids: ids,
+            sku: $('#wcsom-be-sku').val(),
+            tags: $('#wcsom-be-tags').val(),
+            category_id: $('#wcsom-be-category').val(),
+            supplier_id: $('#wcsom-be-supplier').val(),
+            image_id: $('#wcsom-be-image-id').val()
+        }, function(res) {
+            $btn.prop('disabled', false).html(ogText);
+            if (res.success) {
+                alert('Products updated successfully in bulk!');
+                $('#wcsom-bulk-edit-modal').fadeOut(200);
+                triggerGlobalSearch();
+            } else {
+                alert('Error: ' + res.data);
+            }
+        });
+    });
+
+
+    $(document).on('click', '.wcsom-unassign-global-btn', function() {
+        if(!confirm("Unassign this product? You can assign it to someone else afterwards.")) return;
+        let btn = $(this);
+        let pid = btn.data('id');
+        btn.prop('disabled', true).text('Processing...');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_unassign_product',
+            nonce: wcsom_ajax.nonce,
+            product_id: pid
+        }, function(res) {
+            if (res.success) {
+                triggerGlobalSearch();
+            } else {
+                alert("Error unassigning product.");
+                btn.prop('disabled', false).text('Unassign');
+            }
+        });
+    });
+
+    $(document).on('click', '.wcsom-quick-assign-btn', function() {
+        let btn = $(this);
+        let pid = btn.data('id');
+        let dropdown = btn.siblings('.wcsom-quick-assign-sel');
+        let sid = dropdown.val();
+
+        if(!sid) {
+            alert("Please select a supplier from the dropdown first.");
+            return;
+        }
+        btn.prop('disabled', true).text('...');
+
+        $.post(wcsom_ajax.ajax_url, {
+            action: 'wcsom_assign_product',
+            nonce: wcsom_ajax.nonce,
+            supplier_id: sid,
+            product_id: pid
+        }, function(res) {
+            if (res.success) {
+                triggerGlobalSearch();
+            } else {
+                alert("Error assigning product.");
+                btn.prop('disabled', false).text('Assign');
+            }
+        });
+    });
+
+
     // --- PO Builder Logic ---
     function bindCheckboxes() {
         $('.wcsom-po-select, #wcsom-select-all').off('change').on('change', function() {
             if ($(this).attr('id') === 'wcsom-select-all') {
                 $('.wcsom-po-select').prop('checked', $(this).prop('checked'));
             }
-            // Logic to disable button has been deliberately removed so it can always be clicked.
         });
     }
 
@@ -425,97 +1041,12 @@ jQuery(document).ready(function($) {
         });
     });
 
-
-    // --- Global Search Filtering & Reassignment ---
-    function triggerGlobalSearch() {
-        let keyword = $('#wcsom-global-search-input').val();
-        let category = $('#wcsom-filter-category').val();
-        let assignment = $('#wcsom-filter-assignment').val();
-
-        let $btn = $('#wcsom-btn-global-search');
-        let originalText = $btn.html();
-        $btn.prop('disabled', true).html('Filtering...');
-        $('#wcsom-global-search-results').html('<tr><td colspan="6" class="wcsom-empty-cell"><span class="dashicons dashicons-update dashicons-spin"></span> Searching products...</td></tr>');
-        
-        $.post(wcsom_ajax.ajax_url, {
-            action: 'wcsom_global_product_search',
-            nonce: wcsom_ajax.nonce,
-            keyword: keyword,
-            category: category,
-            assignment: assignment
-        }, function(response) {
-            $btn.prop('disabled', false).html(originalText);
-            if (response.success) {
-                $('#wcsom-global-search-results').html(response.data);
-            }
-        });
-    }
-
-    $('#wcsom-btn-global-search').on('click', function() { triggerGlobalSearch(); });
-    $('#wcsom-global-search-input').on('keypress', function(e) { if(e.which == 13) triggerGlobalSearch(); });
-    $('#wcsom-filter-category, #wcsom-filter-assignment').on('change', function() { triggerGlobalSearch(); });
-    if ($('#wcsom-global-search-results').length) triggerGlobalSearch();
-
-    $(document).on('click', '.wcsom-unassign-global-btn', function() {
-        if(!confirm("Unassign this product? You can assign it to someone else afterwards.")) return;
-        let btn = $(this);
-        let pid = btn.data('id');
-        btn.prop('disabled', true).text('Processing...');
-
-        $.post(wcsom_ajax.ajax_url, {
-            action: 'wcsom_unassign_product',
-            nonce: wcsom_ajax.nonce,
-            product_id: pid
-        }, function(res) {
-            if (res.success) {
-                triggerGlobalSearch();
-            } else {
-                alert("Error unassigning product.");
-                btn.prop('disabled', false).text('Unassign');
-            }
-        });
-    });
-
-    $(document).on('click', '.wcsom-quick-assign-btn', function() {
-        let btn = $(this);
-        let pid = btn.data('id');
-        let dropdown = btn.siblings('.wcsom-quick-assign-sel');
-        let sid = dropdown.val();
-
-        if(!sid) {
-            alert("Please select a supplier from the dropdown first.");
-            return;
-        }
-        btn.prop('disabled', true).text('...');
-
-        $.post(wcsom_ajax.ajax_url, {
-            action: 'wcsom_assign_product',
-            nonce: wcsom_ajax.nonce,
-            supplier_id: sid,
-            product_id: pid
-        }, function(res) {
-            if (res.success) {
-                triggerGlobalSearch();
-            } else {
-                alert("Error assigning product.");
-                btn.prop('disabled', false).text('Assign');
-            }
-        });
-    });
-
-    // --- Quick Create Product Logic ---
+    // --- Quick Create / Duplicate Modal Image Handlers ---
     let product_image_frame;
     $('#wcsom-qc-btn-image').on('click', function(e) {
         e.preventDefault();
-        if (product_image_frame) {
-            product_image_frame.open();
-            return;
-        }
-        product_image_frame = wp.media({
-            title: 'Select Product Image',
-            button: { text: 'Use this image' },
-            multiple: false
-        });
+        if (product_image_frame) { product_image_frame.open(); return; }
+        product_image_frame = wp.media({ title: 'Select Product Image', button: { text: 'Use this image' }, multiple: false });
         product_image_frame.on('select', function() {
             let attachment = product_image_frame.state().get('selection').first().toJSON();
             $('#wcsom-qc-image-id').val(attachment.id);
@@ -531,6 +1062,27 @@ jQuery(document).ready(function($) {
         $(this).hide();
     });
 
+    let dup_image_frame;
+    $('#wcsom-dup-btn-image').on('click', function(e) {
+        e.preventDefault();
+        if (dup_image_frame) { dup_image_frame.open(); return; }
+        dup_image_frame = wp.media({ title: 'Select Product Image', button: { text: 'Use this image' }, multiple: false });
+        dup_image_frame.on('select', function() {
+            let attachment = dup_image_frame.state().get('selection').first().toJSON();
+            $('#wcsom-dup-image-id').val(attachment.id);
+            $('#wcsom-dup-img-preview').html(`<img src="${attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url}" style="width:100%; height:100%; object-fit:cover;">`);
+            $('#wcsom-dup-btn-remove-image').show();
+        });
+        dup_image_frame.open();
+    });
+
+    $('#wcsom-dup-btn-remove-image').on('click', function() {
+        $('#wcsom-dup-image-id').val('');
+        $('#wcsom-dup-img-preview').html('<span class="dashicons dashicons-format-image" style="color:#94a3b8; font-size:24px; width:24px; height:24px;"></span>');
+        $(this).hide();
+    });
+
+    // Submitting the Quick Create form
     $('#wcsom-quick-create-form').on('submit', function(e) {
         e.preventDefault();
         let $btn = $('#wcsom-qc-submit');
@@ -542,6 +1094,7 @@ jQuery(document).ready(function($) {
             nonce: wcsom_ajax.nonce,
             title: $('#wcsom-qc-title').val(),
             sku: $('#wcsom-qc-sku').val(),
+            hs_code: $('#wcsom-qc-hs-code').val(),
             price: $('#wcsom-qc-price').val(),
             model_number: $('#wcsom-qc-model').val(),
             price_type: $('#wcsom-qc-price-type').val(),
@@ -558,6 +1111,7 @@ jQuery(document).ready(function($) {
                 if($.fn.selectWoo) {
                     $('#wcsom-qc-category').val('').trigger('change');
                     $('#wcsom-qc-supplier').val('').trigger('change');
+                    if ($('#wcsom-qc-duplicate-search').length) $('#wcsom-qc-duplicate-search').val('').trigger('change');
                 }
                 $('#wcsom-qc-btn-remove-image').trigger('click');
             } else {
@@ -585,10 +1139,10 @@ jQuery(document).ready(function($) {
 
     $('#wcsom-btn-apply-bulk').on('click', function() {
         let ids = [];
-        $('.wcsom-bulk-select:checked').each(function() { ids.push($(this).val()); });
+        $('.wcsom-search-select:checked').each(function() { ids.push($(this).val()); });
         if (ids.length === 0) { alert('Please select at least one order.'); return; }
 
-        let action = $('#wcsom-bulk-action-dropdown').val();
+        let action = $('#wcsom-search-bulk-action').val();
 
         if (action === 'combine') {
             let d = new Date();
@@ -978,6 +1532,7 @@ jQuery(document).ready(function($) {
             let tags = $('#wcsom-edit-tags').val(); 
             let incoterm = $('input[name="wcsom_incoterm"]:checked').val() || $('input[name="wcsom_incoterm"]').val() || 'EXW';
             let fob_port = $('#wcsom-fob-port-input').val() || '';
+            let allow_supp_qty = $('#wcsom-edit-allow-supp-qty').is(':checkbox') ? ($('#wcsom-edit-allow-supp-qty').is(':checked') ? 'yes' : 'no') : $('#wcsom-edit-allow-supp-qty').val();
             
             let items = [];
             $('.wcsom-edit-row').each(function() {
@@ -1025,6 +1580,7 @@ jQuery(document).ready(function($) {
                 notes: notes,
                 incoterm: incoterm,
                 fob_port: fob_port,
+                allow_supp_qty: allow_supp_qty,
                 tags: tags,
                 items: items,
                 payments: payments,

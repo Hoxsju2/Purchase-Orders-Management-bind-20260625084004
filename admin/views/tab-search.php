@@ -4,13 +4,25 @@ $categories = get_terms(array(
     'taxonomy'   => 'product_cat',
     'hide_empty' => false,
 ));
+$can_edit = wcsom_can_edit();
 ?>
 <div class="wcsom-card">
     <div class="wcsom-card-header">
         <h3 class="wcsom-card-title">Global Product Search</h3>
-        <p class="wcsom-card-desc">Filter products by category, status, or search by name and SKU to see assignments. You can quickly assign or unassign products directly from this view.</p>
+        <p class="wcsom-card-desc">Filter products by category, status, or search by name and SKU to see assignments. You can quickly assign, unassign, duplicate, or bulk edit products directly from this view.</p>
     </div>
     
+    <?php if ($can_edit): ?>
+    <div class="wcsom-bulk-actions wcsom-mb-4" style="display:flex; gap:12px; align-items:center; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <select id="wcsom-search-bulk-action" class="wcsom-input" style="width: 200px; font-weight: 500;">
+            <option value="">-- Bulk Actions --</option>
+            <option value="edit">Bulk Edit Selected</option>
+        </select>
+        <button id="wcsom-btn-apply-search-bulk" class="wcsom-btn wcsom-btn-primary" style="padding: 10px 20px;">Apply</button>
+        <span id="wcsom-search-bulk-count" style="margin-left:auto; font-size:13px; color:#4f46e5; font-weight:700; background: #e0e7ff; padding: 4px 10px; border-radius: 6px;">0 selected</span>
+    </div>
+    <?php endif; ?>
+
     <div class="wcsom-search-bar wcsom-mb-4" style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
         
         <div style="flex: 1; min-width: 200px;">
@@ -43,9 +55,10 @@ $categories = get_terms(array(
         <table class="wcsom-table">
             <thead>
                 <tr>
+                    <?php if ($can_edit): ?><th style="width: 40px;"><input type="checkbox" id="wcsom-search-select-all"></th><?php endif; ?>
                     <th>Product Details</th>
                     <th>Category</th>
-                    <th>SKU</th>
+                    <th>SKU / HS</th>
                     <th>WP Status</th>
                     <th>Assignment Status</th>
                     <th style="width:230px;">Action</th>
@@ -53,7 +66,7 @@ $categories = get_terms(array(
             </thead>
             <tbody id="wcsom-global-search-results">
                 <tr>
-                    <td colspan="6" class="wcsom-empty-cell">Use the filters above to load products.</td>
+                    <td colspan="<?php echo $can_edit ? '7' : '6'; ?>" class="wcsom-empty-cell">Use the filters above to load products.</td>
                 </tr>
             </tbody>
         </table>

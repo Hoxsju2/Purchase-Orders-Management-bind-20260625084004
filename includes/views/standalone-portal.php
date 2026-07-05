@@ -26,7 +26,7 @@ if (is_user_logged_in() && get_current_user_id() == $supplier_id) {
 } else {
     // 2. Guest Code Access check - Strip spaces entirely to ensure PDF copies work smoothly
     if (isset($_POST['wcsom_verify_code'])) {
-        $input_code = preg_replace('/\s+/', '', sanitize_text_field($_POST['wcsom_verify_code']));
+        $input_code = preg_replace('/\\s+/', '', sanitize_text_field($_POST['wcsom_verify_code']));
         if ($input_code === $sec_code) {
             $is_authorized = true;
             // Set cookie so they can refresh the page without re-entering
@@ -48,6 +48,7 @@ $payments = get_post_meta($po_id, '_wcsom_payments', true) ?: [];
 $attachments = get_post_meta($po_id, '_wcsom_attachments', true) ?: [];
 $incoterm = get_post_meta($po_id, '_wcsom_incoterm', true) ?: 'EXW';
 $fob_port = get_post_meta($po_id, '_wcsom_fob_port', true) ?: '';
+$allow_supp_qty = get_post_meta($po_id, '_wcsom_allow_supp_qty', true) === 'yes';
 
 // STRICT: Only editable if draft or waiting_for_quote. 'Pending' completely locks it out.
 $is_editable = in_array($status, ['draft', 'waiting_for_quote']);
@@ -152,7 +153,7 @@ $site_name = get_bloginfo('name');
                             </h1>
                             <p class="text-slate-500 mt-2">
                                 <?php if ($is_editable): ?>
-                                    This order requires your input. Please fill out your prices and select terms below. Quantities are locked by the admin.
+                                    This order requires your input. Please fill out your prices and select terms below. <?php echo $allow_supp_qty ? 'You can also adjust the quantities if needed.' : 'Quantities are locked by the admin.'; ?>
                                 <?php else: ?>
                                     This order is finalized and locked for editing.
                                 <?php endif; ?>
@@ -187,6 +188,7 @@ $site_name = get_bloginfo('name');
                                         $grand_total += $line_total;
                                         $is_added = !empty($item['added_by_supplier']);
                                         $supp_model = isset($item['supplier_model']) ? $item['supplier_model'] : get_post_meta($item['product_id'], '_wcsom_supplier_model', true);
+                                        $hs_code = get_post_meta($item['product_id'], '_wcsom_hs_code', true);
                                         
                                         // Prevent showing 0.00 if it was freshly added
                                         $display_price = $item['price'] > 0 ? esc_attr($item['price']) : '';
@@ -197,7 +199,10 @@ $site_name = get_bloginfo('name');
                                             <?php if($supp_model): ?>
                                                 <p class="text-xs text-slate-500 mt-0.5">Model: <?php echo esc_html($supp_model); ?></p>
                                             <?php endif; ?>
-                                            <p class="text-xs text-slate-400 mt-0.5">SKU: <?php echo esc_html($product->get_sku()); ?></p>
+                                            <p class="text-xs text-slate-400 mt-0.5">
+                                                SKU: <?php echo esc_html($product->get_sku()); ?>
+                                                <?php if($hs_code) echo ' | HS Code: ' . esc_html($hs_code); ?>
+                                            </p>
                                             
                                             <?php if($is_added): ?>
                                                 <span class="inline-block mt-1 text-xs font-semibold bg-red-50 text-red-600 px-2 py-0.5 rounded border border-red-100">Added by You</span>
@@ -214,9 +219,12 @@ $site_name = get_bloginfo('name');
                                             <?php endif; ?>
                                         </td>
                                         <td class="p-4 text-center">
-                                            <!-- Quantities are now completely read-only -->
-                                            <input type="hidden" class="val-qty" value="<?php echo esc_attr($item['qty']); ?>">
-                                            <span class="font-bold text-slate-600 bg-slate-100 py-1 px-3 rounded-md"><?php echo esc_html($item['qty']); ?></span>
+                                            <?php if ($is_editable && $allow_supp_qty): ?>
+                                                <input type="number" min="0" name="items[<?php echo $item['product_id']; ?>][qty]" value="<?php echo esc_attr($item['qty']); ?>" class="w-20 px-2 py-1 text-center border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition val-qty">
+                                            <?php else: ?>
+                                                <input type="hidden" name="items[<?php echo $item['product_id']; ?>][qty]" class="val-qty" value="<?php echo esc_attr($item['qty']); ?>">
+                                                <span class="font-bold text-slate-600 bg-slate-100 py-1 px-3 rounded-md"><?php echo esc_html($item['qty']); ?></span>
+                                            <?php endif; ?>
                                         </td>
                                         <td class="p-4 text-right font-bold text-slate-800 val-subtotal">
                                             <?php echo wcsom_format_usd($line_total); ?>
@@ -342,7 +350,7 @@ $site_name = get_bloginfo('name');
                                     </table>
                                 </div>
                                 <?php if($is_editable): ?>
-                                    <p class="text-xs text-slate-500 mt-2 italic">Note: Payment amounts update automatically as you adjust item prices.</p>
+                                    <p class="text-xs text-slate-500 mt-2 italic">Note: Payment amounts update automatically as you adjust item prices or quantities.</p>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
@@ -416,7 +424,7 @@ $site_name = get_bloginfo('name');
                     // Attach input listeners for price changes
                     if (tableBody) {
                         tableBody.addEventListener('input', function(e) {
-                            if (e.target.classList.contains('val-price')) {
+                            if (e.target.classList.contains('val-price') || e.target.classList.contains('val-qty')) {
                                 updateTotals();
                             }
                         });
