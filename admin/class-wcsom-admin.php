@@ -214,7 +214,7 @@ class WCSOM_Admin {
         $this->verify_edit_access();
 
         $api_key = isset($_POST['api_key']) ? sanitize_text_field($_POST['api_key']) : '';
-        $model = isset($_POST['ai_model']) ? sanitize_text_field($_POST['ai_model']) : 'qwen-vl-max';
+        $model = isset($_POST['ai_model']) ? sanitize_text_field($_POST['ai_model']) : 'qwen3.6-plus';
         if (empty($api_key)) wp_send_json_error('API Key is required.');
 
         // Save key and model for future use
@@ -238,33 +238,10 @@ class WCSOM_Admin {
         // Prevent Text-Only models from receiving images
         $text_only_models = ['qwen-max', 'qwen-plus'];
         if ($is_image && in_array($model, $text_only_models)) {
-            wp_send_json_error("Incompatible Model: '{$model}' is a Text-Only model and cannot process Images. Please select 'qwen-vl-max' or 'qwen3.6-plus'.");
+            wp_send_json_error("Incompatible Model: '{$model}' is a Text-Only model and cannot process Images. Please select 'qwen3.6-plus' or 'qwen-vl-max'.");
         }
 
-        // AGGRESSIVE SYSTEM PROMPT FOR MAXIMUM DETAIL EXTRACTION
-        $system_prompt = "You are a highly advanced data extraction AI. Your task is to extract a complete list of products from the provided image or document quotation.
-
-CRITICAL INSTRUCTIONS:
-0. FULL EXTRACTION: You MUST extract EVERY SINGLE PRODUCT found in the document. Scan every row of any table. Do not summarize or skip items.
-1. Product Name ('name'): You MUST synthesize an EXTREMELY detailed and highly descriptive product title. DO NOT just output a single word. You must look at ALL columns and adjacent text related to the product and merge them. Combine the base name with:
-   - Dimensions / Size / Weight
-   - Colors / Materials
-   - Power Specs / Voltage / Wattage
-   - Technical Specifications
-   - Any visible Remarks, Notes, or Descriptions.
-   Format the 'name' exactly like this: \"[Base Name] - [Detailed Specs] - [Notes]\". Make it comprehensive!
-2. Model Number ('model'): Extract the exact supplier model/part/item number.
-3. Price ('price'): Extract the unit price. If not in USD, estimate the conversion to USD. Output ONLY as a numeric float.
-
-You MUST return ONLY a valid JSON array of objects. Do not include markdown blocks like ```json.
-Example:
-[
-  {
-    \"name\": \"Premium Desk Chair - Black Leather, 50x50x100cm, Steel Frame - Includes Armrests\",
-    \"model\": \"DC-8809\",
-    \"price\": 125.50
-  }
-]";
+        $system_prompt = "You are an expert data extraction AI. Extract a complete list of products from the provided raw quotation data.\n\nCRITICAL INSTRUCTIONS:\n0. NO OMISSIONS: You MUST extract EVERY SINGLE PRODUCT found in the document. Read through the entire text/image carefully and do not summarize. If there are 10 items in a table, extract all 10.\n1. Product Name ('name'): Synthesize a highly descriptive product title. Look for tables or repeated structures. Combine the base name with ALL available specifications (Dimensions, Size, Colors, Materials, Power Specs, Remarks).\n2. Model Number ('model'): Extract the exact supplier model/part number.\n3. Price ('price'): Extract the unit price. Convert to USD if in another currency. Output as numeric float.\n\nYou MUST return ONLY a valid JSON array of objects. Do not include markdown blocks. Do not add conversational text.\nExample:\n[\n  {\n    \"name\": \"Premium Desk Chair, Black Leather, 50x50x100cm\",\n    \"model\": \"DC-8809\",\n    \"price\": 125.50\n  }\n]";
 
         // Build the request messages
         if ($is_image) {
@@ -276,7 +253,7 @@ Example:
                 array('role' => 'system', 'content' => $system_prompt),
                 array('role' => 'user', 'content' => array(
                         array('type' => 'image_url', 'image_url' => array('url' => 'data:' . $mime . ';base64,' . $base64)),
-                        array('type' => 'text', 'text' => "Extract EVERY product from this image quotation accurately. Pay extremely close attention to the tables. For each product, merge ALL columns (specs, colors, material, size, notes) into the Product Name field to make it highly descriptive.")
+                        array('type' => 'text', 'text' => "Extract ALL products from this image quotation accurately.")
                     )
                 )
             );
@@ -292,12 +269,12 @@ Example:
             }
 
             if (empty(trim($raw_data))) {
-                wp_send_json_error('Could not extract text from the document. If this is a Scanned PDF (an image inside a PDF), our text-extractor cannot read it. Please convert it to a JPG/PNG and use the Qwen VL Max model instead.');
+                wp_send_json_error('Could not extract text from the document. If this is a Scanned PDF (an image inside a PDF), our text-extractor cannot read it. Please convert it to a JPG/PNG and use the qwen3.6-plus model instead.');
             }
 
             $messages = array(
                 array('role' => 'system', 'content' => $system_prompt),
-                array('role' => 'user', 'content' => "Extract EVERY product from this raw text data accurately. Merge ALL specifications, notes, and remarks into the highly descriptive product name.\n\nRaw Quotation Data:\n" . substr($raw_data, 0, 150000))
+                array('role' => 'user', 'content' => "Raw Quotation Data:\n" . substr($raw_data, 0, 150000))
             );
         }
 
@@ -323,12 +300,6 @@ Example:
 
         $body_str = wp_remote_retrieve_body($response);
         $data = json_decode($body_str, true);
-
-        // Catch Dashscope 503 Overload Errors gracefully
-        $http_code = wp_remote_retrieve_response_code($response);
-        if ($http_code == 503) {
-            wp_send_json_error('API Error (503 Service Unavailable): Alibaba\'s DashScope API is currently overloaded and dropped the request for this specific model. Please try a different model (like Qwen VL Max) or try again later.');
-        }
 
         if (isset($data['code']) && !isset($data['choices'])) {
             $err_msg = isset($data['message']) ? $data['message'] : 'Unknown API error';

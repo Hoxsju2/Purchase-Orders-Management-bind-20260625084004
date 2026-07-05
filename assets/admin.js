@@ -196,8 +196,6 @@ jQuery(document).ready(function($) {
                 let msg = '';
                 if (jqXHR.status === 504 || jqXHR.status === 502) {
                     msg = `Server Error (504 Timeout): Your web host killed the connection because the AI took too long to read the entire document. Try a smaller file, take a screenshot of the table, or ask your host to increase the Nginx/Apache Timeout limit to 150 seconds.`;
-                } else if (jqXHR.status === 503) {
-                    msg = `API Error (503 Service Unavailable): Alibaba's DashScope API is currently overloaded and dropped the request for this specific model. Please try a different model (like Qwen VL Max) or try again later.`;
                 } else if (jqXHR.status === 500) {
                     msg = `Server Error (500): Your WordPress server ran out of memory. Try a smaller file.`;
                 } else {

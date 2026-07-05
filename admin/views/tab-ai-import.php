@@ -16,7 +16,7 @@ $suppliers = get_users(array(
 
 // Retrieve saved configurations
 $saved_api_key = get_option('wcsom_dashscope_api_key', '');
-$saved_model = get_option('wcsom_dashscope_model', 'qwen-vl-max');
+$saved_model = get_option('wcsom_dashscope_model', 'qwen3.6-plus');
 $env_api_key = getenv('DASHSCOPE_API_KEY');
 $default_key = $env_api_key ?: $saved_api_key;
 ?>
@@ -26,7 +26,7 @@ $default_key = $env_api_key ?: $saved_api_key;
             
             <div style="background: #f0fdf4; color: #166534; padding: 14px 20px; border-radius: 8px; border: 1px solid #bbf7d0; margin-bottom: 20px; font-weight: 600; font-size: 14px; display:flex; align-items:center; gap:10px;">
                 <span class="dashicons dashicons-yes-alt" style="font-size:20px; width:20px; height:20px;"></span> 
-                VERSION 1.4.4 - Prompt Upgraded for Qwen VL Max (Maximum Accuracy Extraction).
+                VERSION 1.4.3 - Full-Context AI Parsing Restored for Maximum Accuracy.
             </div>
 
             <h3 class="wcsom-card-title">AI-Powered Bulk Product Import</h3>
@@ -45,8 +45,8 @@ $default_key = $env_api_key ?: $saved_api_key;
                             <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#475569;">AI Model</label>
                             <select id="wcsom-ai-model" class="wcsom-input" style="height: 42px; padding: 0 10px;">
                                 <optgroup label="Advanced Multimodal Models">
-                                    <option value="qwen-vl-max" <?php selected($saved_model, 'qwen-vl-max'); ?>>Qwen VL Max (Best overall for Images, PDFs & Complex Excel)</option>
-                                    <option value="qwen3.6-plus" <?php selected($saved_model, 'qwen3.6-plus'); ?>>Qwen 3.6 Plus (Alternative Vision Model)</option>
+                                    <option value="qwen3.6-plus" <?php selected($saved_model, 'qwen3.6-plus'); ?>>Qwen 3.6 Plus (Best for Images, PDFs & Complex Excel)</option>
+                                    <option value="qwen-vl-max" <?php selected($saved_model, 'qwen-vl-max'); ?>>Qwen VL Max (Alternative Vision Model)</option>
                                 </optgroup>
                                 <optgroup label="Text & Document Models">
                                     <option value="qwen-max" <?php selected($saved_model, 'qwen-max'); ?>>Qwen Max (Best for Text & CSV reasoning)</option>
