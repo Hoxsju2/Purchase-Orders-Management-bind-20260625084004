@@ -18,10 +18,14 @@ $tags_str = implode(', ', $tags);
 
 $incoterm = get_post_meta($po_id, '_wcsom_incoterm', true) ?: 'EXW';
 $fob_port = get_post_meta($po_id, '_wcsom_fob_port', true) ?: '';
+$allow_supp_qty = get_post_meta($po_id, '_wcsom_allow_supp_qty', true) === 'yes' ? 'yes' : 'no';
 
 $payments = get_post_meta($po_id, '_wcsom_payments', true) ?: [];
 $attachments = get_post_meta($po_id, '_wcsom_attachments', true) ?: [];
 $sec_code = get_post_meta($po_id, '_wcsom_security_code', true);
+
+// Generate supplier portal link
+$portal_link = home_url('/?wcsom_portal=1&po_id=' . $po_id);
 
 $code = get_user_meta($supplier_id, 'supplier_code', true);
 $company = get_user_meta($supplier_id, 'company_name', true) ?: get_user_meta($supplier_id, 'first_name', true) . ' ' . get_user_meta($supplier_id, 'last_name', true);
@@ -69,7 +73,7 @@ $assigned_products = get_posts($assigned_args);
                     <thead>
                         <tr>
                             <th>Product Name</th>
-                            <th>SKU</th>
+                            <th>SKU / HS</th>
                             <th style="width:110px;">Orig. Price</th>
                             <th style="width:110px;">PO Price ($)</th>
                             <th style="width:80px; text-align:center;">Diff %</th>
@@ -91,6 +95,7 @@ $assigned_products = get_posts($assigned_args);
                             
                             $orig_price = isset($item['orig_price']) ? floatval($item['orig_price']) : floatval(get_post_meta($item['product_id'], '_wcsom_supplier_price', true));
                             $supp_model = isset($item['supplier_model']) ? $item['supplier_model'] : get_post_meta($item['product_id'], '_wcsom_supplier_model', true);
+                            $hs_code = get_post_meta($item['product_id'], '_wcsom_hs_code', true);
                             
                             // Prevent pre-filling "0.00" on new items, ensuring it displays fully blank
                             $display_price = $item['price'] > 0 ? esc_attr($item['price']) : '';
@@ -101,7 +106,10 @@ $assigned_products = get_posts($assigned_args);
                                 <?php if($supp_model) echo '<br><span style="font-size: 11px; color:#64748b;">Model: '.esc_html($supp_model).'</span>'; ?>
                                 <?php if($is_added_by_supplier) echo '<span style="font-size: 11px; color:#dc2626; display:block;">(Added by Supplier)</span>'; ?>
                             </td>
-                            <td style="color:#64748b; font-size: 13px;"><?php echo esc_html($product->get_sku()); ?></td>
+                            <td style="color:#64748b; font-size: 13px;">
+                                <?php echo esc_html($product->get_sku()); ?>
+                                <?php if($hs_code) echo '<br><span style="font-size:11px;">HS: '.esc_html($hs_code).'</span>'; ?>
+                            </td>
                             <td>
                                 <div style="display:flex; align-items:center; justify-content:space-between; gap:4px; background:#f8fafc; padding:4px 8px; border-radius:6px; border:1px solid #e2e8f0;">
                                     <span class="wcsom-orig-price-display" style="font-weight:600; color:#475569; font-size:13px;"><?php echo wcsom_format_usd($orig_price); ?></span>
@@ -345,11 +353,20 @@ $assigned_products = get_posts($assigned_args);
             </div>
 
             <div class="wcsom-mb-4">
+                <label style="font-size:12px; font-weight:600; color:#64748b; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Supplier Portal Link</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" class="wcsom-input" value="<?php echo esc_url($portal_link); ?>" readonly style="background:#f1f5f9; color:#475569; font-size:12px; cursor:text;" id="wcsom-portal-link-input">
+                    <button type="button" class="wcsom-btn wcsom-btn-outline" onclick="navigator.clipboard.writeText(document.getElementById('wcsom-portal-link-input').value); let og = this.innerHTML; this.innerHTML='Copied!'; setTimeout(()=>this.innerHTML=og, 2000);" style="padding: 0 12px; font-size: 12px;">Copy</button>
+                </div>
+                <p style="font-size:11px; color:#94a3b8; margin:4px 0 0 0;">Share this link directly with the supplier.</p>
+            </div>
+
+            <div class="wcsom-mb-4">
                 <label style="font-size:12px; font-weight:600; color:#64748b; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Security Code</label>
                 <div style="font-size:16px; font-family:monospace; font-weight:700; color:#0f172a; background:#f1f5f9; padding:8px 12px; border-radius:6px; border:1px dashed #cbd5e1; display:inline-block; letter-spacing: 2px;">
                     <?php echo esc_html($sec_code ?: 'N/A'); ?>
                 </div>
-                <p style="font-size:11px; color:#94a3b8; margin:4px 0 0 0;">Used by supplier for portal access</p>
+                <p style="font-size:11px; color:#94a3b8; margin:4px 0 0 0;">Required by supplier to log in</p>
             </div>
 
             <div class="wcsom-mb-4">
@@ -366,6 +383,22 @@ $assigned_products = get_posts($assigned_args);
                 <?php else: ?>
                     <div style="font-weight:700; text-transform:capitalize; padding:10px; background:#f1f5f9; border-radius:6px; border:1px solid #cbd5e1;"><?php echo esc_html(str_replace('_', ' ', $status)); ?></div>
                     <input type="hidden" id="wcsom-edit-status" value="<?php echo esc_attr($status); ?>">
+                <?php endif; ?>
+            </div>
+
+            <div class="wcsom-mb-4">
+                <label style="font-size:12px; font-weight:600; color:#64748b; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Supplier Quantity Editing</label>
+                <?php if ($can_edit): ?>
+                    <div style="display:flex; align-items:center; gap: 8px; margin-top:8px;">
+                        <label class="wcsom-switch">
+                            <input type="checkbox" id="wcsom-edit-allow-supp-qty" <?php checked($allow_supp_qty, 'yes'); ?>>
+                            <span class="wcsom-slider round"></span>
+                        </label>
+                        <span style="font-size:13px; color:#475569; font-weight:500;">Allow supplier to edit quantities</span>
+                    </div>
+                <?php else: ?>
+                    <div style="font-weight:700; padding:10px; background:#f1f5f9; border-radius:6px; border:1px solid #cbd5e1;"><?php echo $allow_supp_qty === 'yes' ? 'Allowed' : 'Not Allowed'; ?></div>
+                    <input type="hidden" id="wcsom-edit-allow-supp-qty" value="<?php echo esc_attr($allow_supp_qty); ?>">
                 <?php endif; ?>
             </div>
 

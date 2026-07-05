@@ -14,6 +14,16 @@ $suppliers = get_users(array(
 ?>
 <div class="wcsom-grid">
     <div class="wcsom-main-content" style="max-width: 800px;">
+        
+        <!-- Duplicate Entry Point 2: Search and Auto-fill -->
+        <div class="wcsom-card wcsom-mb-4" style="background:#f8fafc; border: 1px dashed #cbd5e1;">
+            <label style="display:block; font-size:14px; font-weight:700; margin-bottom:6px; color:#4f46e5;">
+                <span class="dashicons dashicons-admin-page"></span> Duplicate an Existing Product
+            </label>
+            <p class="wcsom-card-desc mb-2" style="font-size:13px; margin-bottom:12px;">Search for any product in your store to instantly auto-fill the form below with its details.</p>
+            <select id="wcsom-qc-duplicate-search" class="wcsom-input" style="width: 100%;"></select>
+        </div>
+
         <div class="wcsom-card">
             <h3 class="wcsom-card-title">Quick Create Product (Accessories / PO Items)</h3>
             <p class="wcsom-card-desc wcsom-mb-4">Use this tool to quickly add products to WooCommerce that you need for Purchase Orders but might not sell directly online. Products are created with a <strong>Pending</strong> status.</p>
@@ -28,12 +38,16 @@ $suppliers = get_users(array(
                         <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#475569;">SKU</label>
                         <input type="text" id="wcsom-qc-sku" class="wcsom-input" placeholder="e.g., ACC-001">
                     </div>
+                    <div style="flex: 1;">
+                        <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#475569;">HS Code</label>
+                        <input type="text" id="wcsom-qc-hs-code" class="wcsom-input" placeholder="e.g. 8504.40">
+                    </div>
                 </div>
 
                 <div class="wcsom-mb-4" style="display:flex; gap: 20px;">
                     <div style="flex: 1;">
                         <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#475569;">Supplier Price (USD) <span style="color:#ef4444;">*</span></label>
-                        <input type="number" step="0.01" id="wcsom-qc-price" class="wcsom-input" required placeholder="0.00">
+                        <input type="number" step="0.01" id="wcsom-qc-price" class="wcsom-input" placeholder="0.00">
                     </div>
                     <div style="flex: 1;">
                         <label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px; color:#475569;">Supplier Model Number</label>
